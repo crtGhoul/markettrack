@@ -72,7 +72,7 @@ main{max-width:760px;margin:0 auto;padding:12px 14px 24px}
 .stepper button{width:40px;height:40px;min-height:40px;padding:0;font-size:1.15rem;border-radius:50%}
 .stepper .val{min-width:38px;text-align:center;font-weight:700}
 .badge{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;vertical-align:middle}
-.badge.heb{background:#c8102e}.badge.walmart{background:#0071ce}.badge.sams{background:#0067a0}.badge.joev{background:#e87722}.badge.custom{background:#6b7280}.badge.off{background:#374151}.badge.ai{background:#7c3aed}
+.badge.heb{background:#c8102e}.badge.walmart{background:#0071ce}.badge.sams{background:#0067a0}.badge.joev{background:#e87722}.badge.custom{background:#6b7280}.badge.off{background:#374151}.badge.ai{background:#7c3aed}.badge.usda{background:#0f766e}.badge.catalog{background:#64748b}
 .chip{border-radius:999px;padding:6px 12px;min-height:38px;font-size:.88rem}
 .chip.on{background:var(--green);color:#fff;border-color:var(--green)}
 .food-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:12px;margin-bottom:10px}
@@ -255,6 +255,7 @@ svg text{fill:var(--muted)}
 
     <div id="food-results"></div>
     <div id="off-results"></div>
+    <div id="usda-results"></div>
 
     <div class="card">
       <h2>🕘 Recent</h2>
@@ -303,6 +304,26 @@ svg text{fill:var(--muted)}
       </div>
       <div id="key-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Your key is saved only in this browser, on this device, and is sent only to Google when you use an AI feature.</p>
+    </div>
+
+    <div class="card">
+      <h2>🌾 USDA FoodData Central API key</h2>
+      <p class="small-txt" style="margin-top:0">Adds USDA as a second food search in Foods — it catches US branded products Open Food Facts misses. Free, 1,000 searches an hour.</p>
+      <ol class="steps">
+        <li>Open <a href="https://api.data.gov/signup" target="_blank" rel="noopener">api.data.gov/signup</a> and sign up — the key arrives by email.</li>
+        <li>Copy the key from that email, paste it below, and tap Save.</li>
+      </ol>
+      <label for="usda-key-input">USDA API key</label>
+      <div class="row">
+        <input id="usda-key-input" type="password" placeholder="Paste your USDA key here" autocomplete="off" aria-label="USDA API key">
+        <button id="usda-key-show" type="button">Show</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary grow" id="usda-key-save">Save USDA key</button>
+        <button id="usda-key-clear">Remove</button>
+      </div>
+      <div id="usda-key-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Your key is private to this browser — it's saved only on this device, sent only to api.nal.usda.gov when you search, and should not be shared.</p>
     </div>
 
     <div class="card">
@@ -608,7 +629,7 @@ function deriveGrams(name,serving){
  return null;
 }
 var CATALOG=RAW.map(function(r,i){return{id:"cat"+i,name:r[0],store:r[1],cat:r[2],serving:r[3],kcal:r[4],p:r[5],c:r[6],f:r[7],fiber:r[8],grams:(r[9]||deriveGrams(r[0],r[3])),src:"catalog"};});
-var STORES={heb:{name:"H-E-B",cls:"heb"},walmart:{name:"Walmart",cls:"walmart"},sams:{name:"Sam's Club",cls:"sams"},joev:{name:"Joe V's",cls:"joev"},custom:{name:"Custom",cls:"custom"},off:{name:"Open Food Facts",cls:"off"}};
+var STORES={heb:{name:"H-E-B",cls:"heb"},walmart:{name:"Walmart",cls:"walmart"},sams:{name:"Sam's Club",cls:"sams"},joev:{name:"Joe V's",cls:"joev"},custom:{name:"Custom",cls:"custom"},off:{name:"Open Food Facts",cls:"off"},usda:{name:"USDA",cls:"usda"}};
 var CATS={produce:"Produce",protein:"Protein",dairy:"Dairy & Eggs",bakery:"Bakery",pantry:"Pantry",frozen:"Frozen",snacks:"Snacks",beverages:"Beverages",prepared:"Prepared & Deli"};
 var MEALS=[["breakfast","🍳 Breakfast"],["lunch","🥗 Lunch"],["dinner","🍽️ Dinner"],["snack","🍎 Snack"]];
 var NEARBY=[
@@ -621,14 +642,14 @@ var ACTS={4:"Walk",11:"Run",8:"Cycle",5:"Weights",9:"Swim",3:"Yoga"};
 
 /* ================= State ================= */
 var KEY="markettrack-v1";
-var DEFAULTS={apiKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
+var DEFAULTS={apiKey:"",usdaApiKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
  profile:{weightLb:180,heightIn:68,age:30,sex:"male",activity:"moderate",lossRate:1},
  days:{},customFoods:[]};
 function loadState(){
  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object"){
    s.targets=Object.assign({},DEFAULTS.targets,s.targets||{});
    s.profile=Object.assign({},DEFAULTS.profile,s.profile||{});
-   s.days=s.days||{};s.customFoods=s.customFoods||[];s.apiKey=s.apiKey||"";return s;}}catch(e){}
+   s.days=s.days||{};s.customFoods=s.customFoods||[];s.apiKey=s.apiKey||"";s.usdaApiKey=s.usdaApiKey||"";return s;}}catch(e){}
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
@@ -842,12 +863,13 @@ function filterFoods(){
  var q=document.getElementById("food-search").value.trim().toLowerCase(),cat=document.getElementById("cat-filter").value;
  var list=allFoods().filter(function(f){
    return (!storeFilter||f.store===storeFilter)&&(!cat||f.cat===cat)&&(!q||f.name.toLowerCase().indexOf(q)>=0);});
- document.getElementById("food-results").innerHTML=(list.length?list.slice(0,60).map(foodCard).join(""):'<div class="card"><p class="muted" style="margin:0">No match in your local index'+(q?' — checking Open Food Facts below…':".")+'</p></div>');
+ document.getElementById("food-results").innerHTML=(list.length?list.slice(0,60).map(foodCard).join(""):'<div class="card"><p class="muted" style="margin:0">No match in your local index'+(q?' — checking Open Food Facts &amp; USDA below…':".")+'</p></div>');
  bindFoodCards(document.getElementById("food-results"));
 }
 function foodCard(f){
  var st=STORES[f.store]||STORES.custom;
- return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge '+st.cls+'">'+esc(st.name)+'</span>'+(f.src==="ai"?' <span class="badge ai">AI estimate</span>':"")+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(CATS[f.cat]||"")+' · '+esc(f.serving)+(f.grams&&!/\dg/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div><div class="row"><button class="primary grow" data-log="'+f.id+'">Log to '+mealNames[document.getElementById("log-meal").value]+'</button><button data-adj="'+f.id+'">Servings…</button></div></div>';
+ var srcBadge=f.src==="catalog"?' <span class="badge catalog">Catalog</span>':(f.src==="usda"&&f.store!=="usda"?' <span class="badge usda">USDA</span>':(f.src==="off"&&f.store!=="off"?' <span class="badge off">Open Food Facts</span>':""));
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge '+st.cls+'">'+esc(st.name)+'</span>'+srcBadge+(f.src==="ai"?' <span class="badge ai">AI estimate</span>':"")+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(CATS[f.cat]||"")+' · '+esc(f.serving)+(f.grams&&!/\dg/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div><div class="row"><button class="primary grow" data-log="'+f.id+'">Log to '+mealNames[document.getElementById("log-meal").value]+'</button><button data-adj="'+f.id+'">Servings…</button></div></div>';
 }
 function bindFoodCards(scope){
  scope.querySelectorAll("[data-log]").forEach(function(b){b.addEventListener("click",function(){
@@ -877,17 +899,87 @@ function showOff(list,el){
    if(!state.customFoods.some(function(x){return x.name===f.name;})){f.id="cf"+Date.now();state.customFoods.push(f);save();}
    toast("Saved to your Foods index.");filterFoods();});});
 }
+/* USDA FoodData Central */
+var usdaCache={};
+function usdaNutrient(item,names){
+ var ns=item.foodNutrients||[];
+ for(var i=0;i<ns.length;i++){var n=ns[i];var nm=(n.nutrientName||(n.nutrient&&n.nutrient.name)||"").toLowerCase();
+   for(var k=0;k<names.length;k++){if(nm.indexOf(names[k])===0||nm===names[k]){var v=n.value!=null?n.value:(n.amount!=null?n.amount:0);var unit=(n.unitName||(n.nutrient&&n.nutrient.unitName)||"").toUpperCase();
+     if(names[k]==="energy"&&unit==="KJ")v=v/4.184;return v||0;}}}
+ return 0;
+}
+function usdaFood(item){
+ var per100={kcal:usdaNutrient(item,["energy"]),p:usdaNutrient(item,["protein"]),c:usdaNutrient(item,["carbohydrate"]),f:usdaNutrient(item,["total lipid","total fat"]),fiber:usdaNutrient(item,["fiber"])};
+ var ss=parseFloat(item.servingSize),unit=(item.servingSizeUnit||"").trim();
+ var grams=null,scale=1,serving="100 g";
+ if(ss>0&&unit){
+   var u=unit.toLowerCase();
+   if(u==="g"||u==="gram"||u==="grams"||u==="grm"){grams=Math.round(ss);}
+   else if(u==="ml"||u==="milliliter"||u==="milliliters"){grams=Math.round(ss);}
+   else if(u==="mg"){grams=Math.round(ss/1000*10)/10;}
+   else if(u==="oz"||u.indexOf("ounce")>=0){grams=Math.round(ss*28.35);}
+   else if(u==="lb"||u.indexOf("pound")>=0){grams=Math.round(ss*453.6);}
+   if(grams&&grams>0){scale=grams/100;serving=ss+" "+unit;}
+   else{serving=ss+" "+unit;grams=100;}
+ } else {grams=100;}
+ var brand=item.brandName||item.brandOwner||"";
+ var desc=item.description||"Unknown product";
+ var name=desc;
+ if(brand&&desc.toLowerCase().indexOf(String(brand).toLowerCase())<0)name=brand+" "+desc;
+ return {id:"usda"+(item.fdcId||Date.now()+Math.random().toString(36).slice(2,6)),name:name,store:"usda",cat:"pantry",serving:serving,kcal:Math.round(per100.kcal*scale),p:r1(per100.p*scale),c:r1(per100.c*scale),f:r1(per100.f*scale),fiber:r1(per100.fiber*scale),grams:grams,src:"usda",gtin:item.gtinUpc||""};
+}
+function usdaCard(f){
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge usda">USDA</span></span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(f.serving)+(f.grams&&!/g\b/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div><div class="row wrap"><button class="primary grow" data-usdalog="'+esc(f.id)+'">Log it</button><button data-usdaadj="'+esc(f.id)+'">Servings…</button><button data-usdasave="'+esc(f.id)+'">Save to my index</button></div></div>';
+}
+function showUsda(list,el){
+ list.forEach(function(f){usdaCache[f.id]=f;});
+ el.innerHTML=list.length?'<h3 style="margin:6px 2px 10px">From USDA FoodData Central</h3>'+list.map(usdaCard).join(""):"";
+ el.querySelectorAll("[data-usdalog]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdalog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(new Date()));toast("Added "+f.name);}});});
+ el.querySelectorAll("[data-usdaadj]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdaadj")];if(f)openAdjust(f,document.getElementById("log-meal").value);});});
+ el.querySelectorAll("[data-usdasave]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdasave")];if(!f)return;
+   if(!state.customFoods.some(function(x){return x.name===f.name;})){var nf=Object.assign({},f);nf.id="cf"+Date.now();state.customFoods.push(nf);save();}
+   toast("Saved to your Foods index.");filterFoods();});});
+}
+function usdaHintHtml(){return '<p class="muted small-txt" style="margin:10px 2px">Add a USDA key in Settings for more US branded results.</p>';}
+function searchUsda(query){
+ return fetch("https://api.nal.usda.gov/fdc/v1/foods/search?query="+encodeURIComponent(query)+"&api_key="+encodeURIComponent(state.usdaApiKey||"")+"&pageSize=10")
+  .then(function(r){if(!r.ok)throw new Error("usda-"+r.status);return r.json();})
+  .then(function(j){return (j.foods||[]).filter(function(it){return it.description;}).map(usdaFood);});
+}
 function maybeOffSearch(){
  var q=document.getElementById("food-search").value.trim();
- var local=allFoods().some(function(f){return f.name.toLowerCase().indexOf(q.toLowerCase())>=0;});
  var el=document.getElementById("off-results");
- if(!q||q.length<3||local){el.innerHTML="";return;}
+ var uel=document.getElementById("usda-results");
+ if(!q||q.length<3){el.innerHTML="";if(uel)uel.innerHTML="";return;}
  el.innerHTML='<p class="muted small-txt">Searching Open Food Facts…</p>';
+ if(uel){uel.innerHTML=state.usdaApiKey?'<p class="muted small-txt">Searching USDA FoodData Central…</p>':usdaHintHtml();}
  fetch("https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=10")
   .then(function(r){return r.json();}).then(function(j){
     var list=(j.products||[]).filter(function(p){return p.product_name;}).map(offFood);showOff(list,el);
-    if(!list.length)el.innerHTML='<p class="muted small-txt">No Open Food Facts results for “'+esc(q)+'” either.</p>';
+    if(!list.length)el.innerHTML='<p class="muted small-txt">No Open Food Facts results for “'+esc(q)+'”.</p>';
   }).catch(function(){el.innerHTML='<p class="muted small-txt">Open Food Facts search needs an internet connection.</p>';});
+ if(state.usdaApiKey&&uel){
+   searchUsda(q).then(function(list){
+     if(document.getElementById("food-search").value.trim()!==q)return;
+     showUsda(list,uel);
+     if(!list.length)uel.innerHTML='<p class="muted small-txt">No USDA results for “'+esc(q)+'” either.</p>';
+   }).catch(function(e){uel.innerHTML='<p class="muted small-txt">'+(String(e.message).indexOf("401")>=0||String(e.message).indexOf("403")>=0?"USDA key didn’t work — check it in Settings.":"USDA search needs an internet connection.")+'</p>';});
+ }
+}
+function gtinMatches(gtin,code){
+ if(!gtin)return false;
+ var a=String(gtin).replace(/\D/g,"").replace(/^0+/,""),b=String(code).replace(/\D/g,"").replace(/^0+/,"");
+ return a&&b&&a===b;
+}
+function barcodeUsdaFallback(code,el,offMsg){
+ if(!state.usdaApiKey){el.innerHTML='<p class="err">'+esc(offMsg)+'</p><p class="muted small-txt">Add a USDA key in Settings for more US branded results — USDA can also be checked by barcode.</p>';return;}
+ el.innerHTML='<p class="muted small-txt">Not in Open Food Facts — checking USDA by barcode…</p>';
+ searchUsda(code).then(function(list){
+   var exact=list.filter(function(f){return gtinMatches(f.gtin,code);});
+   var hit=exact.length?exact:[];
+   if(hit.length){showUsda(hit,el);}
+   else {el.innerHTML='<p class="err">That barcode was not found in Open Food Facts or USDA.</p>';}
+ }).catch(function(){el.innerHTML='<p class="err">That barcode was not found in Open Food Facts, and USDA could not be checked.</p>';});
 }
 document.getElementById("barcode-btn").addEventListener("click",function(){
  var code=document.getElementById("barcode-input").value.replace(/\D/g,""),el=document.getElementById("barcode-result");
@@ -895,9 +987,9 @@ document.getElementById("barcode-btn").addEventListener("click",function(){
  el.innerHTML='<p class="muted small-txt">Looking up…</p>';
  fetch("https://world.openfoodfacts.org/api/v2/product/"+code+".json")
   .then(function(r){return r.json();}).then(function(j){
-    if(j.status!==1||!j.product){el.innerHTML='<p class="err">That barcode is not in the food database yet</p>';return;}
+    if(j.status!==1||!j.product){barcodeUsdaFallback(code,el,"That barcode is not in the food database yet");return;}
     var f=offFood(j.product);showOff([f],el);
-  }).catch(function(){el.innerHTML='<p class="err">Barcode lookup needs an internet connection.</p>';});
+  }).catch(function(){barcodeUsdaFallback(code,el,"Barcode lookup needs an internet connection.");});
 });
 
 /* ================= Gemini (AI fill-in + label scan) ================= */
@@ -1036,6 +1128,8 @@ function renderCalcPreview(){
 function renderSettings(){
  document.getElementById("api-key-input").value=state.apiKey||"";
  document.getElementById("key-status").innerHTML=state.apiKey?'<span class="ok-msg">✓ Key saved in this browser.</span>':'<span class="muted small-txt">No key saved yet.</span>';
+ var uk=document.getElementById("usda-key-input");if(uk)uk.value=state.usdaApiKey||"";
+ var us=document.getElementById("usda-key-status");if(us)us.innerHTML=state.usdaApiKey?'<span class="ok-msg">✓ USDA key saved in this browser — USDA search is on in Foods.</span>':'<span class="muted small-txt">No USDA key saved yet — Foods search still works via your catalog and Open Food Facts.</span>';
  var p=state.profile;
  document.getElementById("p-weight").value=p.weightLb;document.getElementById("p-height").value=p.heightIn;
  document.getElementById("p-age").value=p.age;document.getElementById("p-activity").value=p.activity;
@@ -1066,6 +1160,15 @@ document.getElementById("key-save").addEventListener("click",function(){
 document.getElementById("key-clear").addEventListener("click",function(){state.apiKey="";save();renderSettings();toast("API key removed.");});
 document.getElementById("key-show").addEventListener("click",function(){
  var i=document.getElementById("api-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
+});
+document.getElementById("usda-key-save").addEventListener("click",function(){
+ var v=document.getElementById("usda-key-input").value.trim();
+ if(!v){toast("Paste your USDA key first.");return;}
+ state.usdaApiKey=v;save();renderSettings();toast("USDA key saved in this browser.");
+});
+document.getElementById("usda-key-clear").addEventListener("click",function(){state.usdaApiKey="";save();renderSettings();toast("USDA key removed.");});
+document.getElementById("usda-key-show").addEventListener("click",function(){
+ var i=document.getElementById("usda-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
 /* data tools */
 function download(name,content,type){
