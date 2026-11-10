@@ -110,13 +110,46 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:14px 0}
 .kcal-big{font-weight:800}
 svg text{fill:var(--muted)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+/* Saved indicator + Refresh */
+.saved-pill{display:inline-flex;align-items:center;gap:6px;background:var(--green-soft);border:1px solid var(--green);color:var(--ink);border-radius:999px;padding:6px 10px;font-size:.82rem;font-weight:700;line-height:1}
+.saved-pill .dot-live{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;flex:none}
+.refresh-btn{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.version-stamp{font-size:.82rem;color:var(--muted);letter-spacing:.02em}
+/* Log tab */
+.log-day{border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden;margin-bottom:12px}
+.log-day-head{width:100%;text-align:left;border:none;background:var(--card);padding:14px;display:block;border-radius:0}
+.log-day-head:active{background:var(--green-soft)}
+.log-date{font-weight:800;font-size:1rem;line-height:1.2}
+.log-meta{font-size:.85rem;color:var(--muted);margin-top:2px}
+.log-bar-track{height:9px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px 0 8px}
+.log-bar-fill{height:100%;background:var(--green);border-radius:999px}
+.log-bar-fill.over{background:var(--red)}
+.macro-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mchip{display:inline-flex;align-items:center;gap:4px;font-size:.78rem;font-weight:700;padding:5px 8px;border-radius:999px;line-height:1}
+.mchip.p{background:#dcfce7;color:#14532d}.mchip.c{background:#fef3c7;color:#92400e}.mchip.f{background:#dbeafe;color:#1e3a8a}.mchip.fb{background:#e5e7eb;color:#374151}.mchip.k{background:#17211a;color:#fff}
+@media(prefers-color-scheme:dark){.mchip.p{background:#14532d;color:#bbf7d0}.mchip.c{background:#451a03;color:#fde68a}.mchip.f{background:#172554;color:#bfdbfe}.mchip.fb{background:#374151;color:#e5e7eb}.mchip.k{background:#e8efe9;color:#101511}}
+.log-detail{display:none;border-top:1px solid var(--line);padding:12px 14px 14px}
+.log-day.open .log-detail{display:block}
+.log-meal-title{font-weight:800;font-size:.9rem;margin:12px 0 6px;display:flex;justify-content:space-between}
+.log-meal-title:first-child{margin-top:0}
+.log-entry{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:.92rem}
+.log-entry:first-of-type{border-top:none}
+.log-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.log-stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+.log-stat b{display:block;font-size:.95rem}
+.log-stat span{font-size:.75rem;color:var(--muted);font-weight:600}
+.chevron{transition:transform .2s}
+.log-day.open .chevron{transform:rotate(180deg)}
 </style>
 </head>
 <body>
 <main>
   <!-- ============ TODAY ============ -->
   <section id="view-today" class="view active">
-    <button class="settings-jump" data-go="settings">⚙ Settings · API key · Calculator</button>
+    <div class="row" style="margin-bottom:12px;gap:8px">
+      <button class="settings-jump grow" data-go="settings" style="margin-bottom:0;width:auto">⚙ Settings · API key · Calculator · <span id="saved-today-txt">Saved ✓</span></button>
+      <button class="refresh-btn" id="refresh-today" type="button" aria-label="Refresh app" title="Save and reload the newest version" style="flex:none">↻ Refresh</button>
+    </div>
     <div id="today-key-area"></div>
     <div class="date-nav">
       <button id="date-prev" aria-label="Previous day">‹</button>
@@ -263,6 +296,19 @@ svg text{fill:var(--muted)}
     </div>
   </section>
 
+  <!-- ============ LOG ============ -->
+  <section id="view-log" class="view">
+    <button class="settings-jump" data-go="settings">⚙ Settings · API key · Calculator</button>
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div class="grow">
+        <h1 style="font-size:1.45rem;margin:2px 0 4px;line-height:1">📖 Your Log</h1>
+        <p class="muted small-txt" style="margin:0 0 4px">Every day you've tracked — tap a day to see the full breakdown.</p>
+      </div>
+      <span class="saved-pill" id="saved-log"><span class="dot-live"></span><span id="saved-log-txt">Saved ✓</span></span>
+    </div>
+    <div id="log-list" style="margin-top:12px"></div>
+  </section>
+
   <!-- ============ PROGRESS ============ -->
   <section id="view-progress" class="view">
     <button class="settings-jump" data-go="settings">⚙ Settings · API key · Calculator</button>
@@ -285,17 +331,28 @@ svg text{fill:var(--muted)}
       <button class="primary" data-go="today">✓ Done</button>
     </div>
 
+    <div class="card" style="border:2px solid var(--green)">
+      <h2>↻ App, saving &amp; refresh</h2>
+      <p class="small-txt" style="margin-top:0">Home-screen apps can show an old cached copy. Use Refresh to save everything first, then load the newest version.</p>
+      <div class="row wrap" style="margin:10px 0">
+        <span class="saved-pill" id="saved-settings"><span class="dot-live"></span><span id="saved-settings-txt">Saved ✓</span></span>
+        <span class="version-stamp">MarketTrack — updated Nov 10, 2026 · v2026.11.10</span>
+      </div>
+      <button class="primary refresh-btn" id="refresh-settings" type="button" style="width:100%;justify-content:center">↻ Refresh app — save &amp; load newest version</button>
+      <p class="muted small-txt" style="margin:8px 0 0">This saves all your logs, keys, targets and foods to this browser right before it reloads, so nothing is lost.</p>
+    </div>
+
     <div class="card" style="border:2px solid var(--amber-line)">
-      <h2>🔑 Google AI Studio API key</h2>
-      <p class="small-txt" style="margin-top:0">Powers the AI fill-in and the nutrition-label photo scan. Everything else works without it.</p>
+      <h2>🔑 1 · Google AI Studio (Gemini) API key</h2>
+      <p class="small-txt" style="margin-top:0"><strong>What it powers:</strong> AI fill-in + nutrition-label photo scan in Foods. <strong>Where it goes:</strong> paste it in the box below — this is the Gemini key, not the USDA key. Everything else works without it.</p>
       <ol class="steps">
         <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with Google.</li>
         <li>Tap <strong>Create API key</strong> — it's free.</li>
         <li>Copy the key, paste it below, and tap Save.</li>
       </ol>
-      <label for="api-key-input">API key</label>
+      <label for="api-key-input">Google AI Studio (Gemini) API key — paste here</label>
       <div class="row">
-        <input id="api-key-input" type="password" placeholder="Paste your key here" autocomplete="off" aria-label="API key">
+        <input id="api-key-input" type="password" placeholder="Paste your Gemini key here" autocomplete="off" aria-label="Google AI Studio API key">
         <button id="key-show" type="button">Show</button>
       </div>
       <div class="row" style="margin-top:10px">
@@ -307,13 +364,13 @@ svg text{fill:var(--muted)}
     </div>
 
     <div class="card">
-      <h2>🌾 USDA FoodData Central API key</h2>
-      <p class="small-txt" style="margin-top:0">Adds USDA as a second food search in Foods — it catches US branded products Open Food Facts misses. Free, 1,000 searches an hour.</p>
+      <h2>🌾 2 · USDA FoodData Central API key</h2>
+      <p class="small-txt" style="margin-top:0"><strong>What it powers:</strong> USDA search in Foods — a second search that catches US branded products Open Food Facts misses. <strong>Where it goes:</strong> paste it in the box below — this is the USDA key, not the Gemini key above. Free, 1,000 searches an hour.</p>
       <ol class="steps">
         <li>Open <a href="https://api.data.gov/signup" target="_blank" rel="noopener">api.data.gov/signup</a> and sign up — the key arrives by email.</li>
         <li>Copy the key from that email, paste it below, and tap Save.</li>
       </ol>
-      <label for="usda-key-input">USDA API key</label>
+      <label for="usda-key-input">USDA API key — paste here</label>
       <div class="row">
         <input id="usda-key-input" type="password" placeholder="Paste your USDA key here" autocomplete="off" aria-label="USDA API key">
         <button id="usda-key-show" type="button">Show</button>
@@ -385,6 +442,7 @@ svg text{fill:var(--muted)}
         <button id="clear-data" style="color:var(--red)">Erase everything</button>
       </div>
       <div id="data-msg" style="margin-top:8px"></div>
+      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 10, 2026 · Browser version · Saves in this browser only</p>
     </div>
 
     <button class="primary" data-go="today" style="width:100%;min-height:52px;font-size:1.05rem">Done — back to Today</button>
@@ -458,6 +516,7 @@ svg text{fill:var(--muted)}
 <nav class="bottom" aria-label="Main">
   <button data-go="today" class="on"><span class="ic">🏠</span>Today</button>
   <button data-go="foods"><span class="ic">🛒</span>Foods</button>
+  <button data-go="log"><span class="ic">📖</span>Log</button>
   <button data-go="progress"><span class="ic">📈</span>Progress</button>
   <button data-go="settings"><span class="ic">⚙️</span>Settings<span class="small-txt" id="nav-key-hint" style="display:none">add API key</span><span class="dot" id="nav-dot"></span></button>
 </nav>
@@ -653,7 +712,32 @@ function loadState(){
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){toast("Couldn't save — browser storage is full or blocked.");}}
+var LAST_SAVE_KEY="markettrack-last-save";
+function formatSaveTime(ts){
+ if(!ts)return "Saved ✓";
+ try{var d=new Date(ts);return "Saved ✓ · "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+" · "+d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}catch(e){return "Saved ✓";}
+}
+function updateSavedIndicators(){
+ var ts=null;try{ts=parseInt(localStorage.getItem(LAST_SAVE_KEY)||"0",10)||null;}catch(e){}
+ var txt=ts?formatSaveTime(ts):"Saved ✓ — on this device";
+ ["saved-today-txt","saved-settings-txt","saved-log-txt"].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=txt;});
+}
+function save(){
+ try{localStorage.setItem(KEY,JSON.stringify(state));var now=Date.now();try{localStorage.setItem(LAST_SAVE_KEY,String(now));}catch(e2){} updateSavedIndicators();}
+ catch(e){toast("Couldn't save — browser storage is full or blocked.");}
+}
+function refreshApp(){
+ save();
+ toast("Saved ✓ — refreshing to the newest version…");
+ setTimeout(function(){
+   try{
+     var url=window.location.href.split("#")[0];
+     url=url.replace(/([?&])_r=\d+/g,"$1").replace(/[?&]$/,"");
+     var sep=url.indexOf("?")>=0?"&":"?";
+     window.location.replace(url+sep+"_r="+Date.now());
+   }catch(e){try{window.location.reload(true);}catch(e2){window.location.reload();}}
+ },400);
+}
 function dayKey(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 var viewDate=new Date();viewDate.setHours(0,0,0,0);
 function day(k){if(!state.days[k])state.days[k]={entries:[],waterOz:0,weightLb:null,activity:[]};var d=state.days[k];d.entries=d.entries||[];d.activity=d.activity||[];if(d.waterOz==null)d.waterOz=0;return d;}
@@ -685,7 +769,8 @@ function go(view){
  document.getElementById("view-"+view).classList.add("active");
  document.querySelectorAll("nav.bottom button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-go")===view);});
  window.scrollTo(0,0);
- if(view==="today")renderToday();if(view==="foods")renderFoods();if(view==="progress")renderProgress();if(view==="settings")renderSettings();
+ if(view==="today")renderToday();if(view==="foods")renderFoods();if(view==="log")renderLog();if(view==="progress")renderProgress();if(view==="settings")renderSettings();
+ updateSavedIndicators();
 }
 document.querySelectorAll("[data-go]").forEach(function(b){b.addEventListener("click",function(){go(b.getAttribute("data-go"));});});
 
@@ -1067,6 +1152,75 @@ document.getElementById("cf-save").addEventListener("click",function(){
  document.getElementById("custom-modal").classList.remove("open");toast("Saved “"+name+"” to your Foods index.");filterFoods();
 });
 
+/* ================= Log ================= */
+function parseDayKey(k){
+ var p=k.split("-");if(p.length!==3)return new Date(k);
+ return new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10));
+}
+function renderLog(){
+ updateSavedIndicators();
+ var el=document.getElementById("log-list");if(!el)return;
+ var keys=Object.keys(state.days||{}).sort().reverse();
+ var logged=keys.filter(function(k){
+   var d=state.days[k]||{};
+   return ((d.entries||[]).length>0)||((d.activity||[]).length>0)||(d.waterOz>0)||(d.weightLb!=null);
+ });
+ if(!logged.length){
+   el.innerHTML='<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:2rem;line-height:1">📖</div><h2 style="margin:10px 0 6px">No days logged yet</h2><p class="muted" style="margin:0">No days logged yet — log a meal and it will show up here.</p><button class="primary" data-go="foods" style="margin-top:14px">Log your first food</button></div>';
+   bindGo(el);return;
+ }
+ var tg=state.targets||DEFAULTS.targets;
+ var todayK=dayKey(new Date());
+ var yest=new Date();yest.setDate(yest.getDate()-1);var yestK=dayKey(yest);
+ el.innerHTML=logged.map(function(k,idx){
+   var d=day(k),t=totals(k);
+   var dt=parseDayKey(k);
+   var title=dt.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+   var rel=k===todayK?" · Today":(k===yestK?" · Yesterday":"");
+   var pct=tg.calories?Math.min(100,Math.round(t.kcal/tg.calories*100)):0;
+   var over=t.kcal>tg.calories;
+   var mealSections=MEALS.map(function(m){
+     var es=d.entries.filter(function(e){return e.meal===m[0];});
+     if(!es.length)return "";
+     var sub=es.reduce(function(s,e){return s+e.kcal*e.servings;},0);
+     var rows=es.map(function(e){
+       var eg=entryGrams(e);
+       var amt=eg.g!=null?eg.g+" g":fmtServ(e.servings)+" × "+esc(e.serving);
+       return '<div class="log-entry"><span class="grow" style="min-width:0"><strong>'+esc(e.name)+'</strong><br><span class="muted small-txt">'+amt+' · '+esc(e.serving)+'</span></span><span style="text-align:right;flex:none"><strong>'+fmt(e.kcal*e.servings)+' kcal</strong><br><span class="muted small-txt">P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</span></span></div>';
+     }).join("");
+     return '<div class="log-meal-title"><span>'+m[1]+'</span><span class="muted">'+fmt(sub)+' kcal</span></div>'+rows;
+   }).join("");
+   var actHtml=d.activity&&d.activity.length?d.activity.map(function(a){return '<div class="log-entry"><span>'+esc(a.name)+' · '+a.minutes+' min</span><strong>'+fmt(a.kcal)+' kcal burned</strong></div>';}).join(""):'<p class="muted small-txt" style="margin:4px 0 0">No activity logged.</p>';
+   return '<article class="log-day'+(idx===0?" open":"")+'" data-logday="'+esc(k)+'">'
+     +'<button class="log-day-head" data-logtoggle="'+esc(k)+'" aria-expanded="'+(idx===0?"true":"false")+'">'
+     +'<div class="row" style="align-items:flex-start"><span class="grow"><span class="log-date">'+esc(title)+esc(rel)+'</span><div class="log-meta">'+fmt(t.kcal)+' of '+fmt(tg.calories)+' kcal'+(over?' · '+(fmt(t.kcal-tg.calories))+' over':' · '+fmt(Math.max(0,tg.calories-t.kcal))+' left')+' · Net '+fmt(t.kcal-t.burned)+' kcal</div></span><span class="chevron" aria-hidden="true">⌄</span></div>'
+     +'<div class="log-bar-track"><div class="log-bar-fill'+(over?" over":"")+'" style="width:'+pct+'%"></div></div>'
+     +'<div class="row" style="justify-content:space-between"><span class="small-txt muted">'+pct+'% of target</span><span class="small-txt"><strong>'+(d.entries.length)+' foods</strong>'+(d.weightLb!=null?' · '+d.weightLb+' lb':'')+(d.waterOz?' · 💧 '+fmt(d.waterOz)+' oz':'')+'</span></div>'
+     +'<div class="macro-chips"><span class="mchip k">🔥 '+fmt(t.kcal)+' kcal</span><span class="mchip p">Protein '+r1(t.p)+'g</span><span class="mchip c">Carbs '+r1(t.c)+'g</span><span class="mchip f">Fat '+r1(t.f)+'g</span><span class="mchip fb">Fiber '+r1(t.fiber)+'g</span>'+(t.burned?'<span class="mchip p">Burned '+fmt(t.burned)+'</span>':"")+'</div>'
+     +'</button>'
+     +'<div class="log-detail">'
+     +(mealSections||'<p class="muted small-txt">No foods logged this day.</p>')
+     +'<div class="log-stats"><div class="log-stat"><b>'+fmt(d.waterOz||0)+' oz</b><span>💧 Water</span></div><div class="log-stat"><b>'+(d.weightLb!=null?d.weightLb+' lb':"—")+'</b><span>⚖️ Weight</span></div><div class="log-stat"><b>'+fmt(t.burned)+' kcal</b><span>🔥 Burned</span></div></div>'
+     +'<div class="log-meal-title" style="margin-top:14px"><span>🔥 Activity</span><span class="muted">'+fmt(t.burned)+' kcal</span></div>'+actHtml
+     +'<button class="small" data-loggo="'+esc(k)+'" style="margin-top:12px">Open this day in Today →</button>'
+     +'</div></article>';
+ }).join("");
+ el.querySelectorAll("[data-logtoggle]").forEach(function(b){
+   b.addEventListener("click",function(){
+     var card=b.closest(".log-day");if(!card)return;
+     var willOpen=!card.classList.contains("open");
+     card.classList.toggle("open",willOpen);
+     b.setAttribute("aria-expanded",willOpen?"true":"false");
+   });
+ });
+ el.querySelectorAll("[data-loggo]").forEach(function(b){
+   b.addEventListener("click",function(ev){
+     ev.stopPropagation();
+     var k=b.getAttribute("data-loggo");viewDate=parseDayKey(k);viewDate.setHours(0,0,0,0);go("today");
+   });
+ });
+}
+
 /* ================= Progress ================= */
 function renderProgress(){
  var days=[],i,k,d;
@@ -1191,7 +1345,10 @@ document.getElementById("clear-data").addEventListener("click",function(){
 
 /* init */
 document.getElementById("log-meal").value=currentMeal();
+var _rt=document.getElementById("refresh-today");if(_rt)_rt.addEventListener("click",refreshApp);
+var _rs=document.getElementById("refresh-settings");if(_rs)_rs.addEventListener("click",refreshApp);
 bindGo(document);
+updateSavedIndicators();
 renderToday();
 </script>
 </body>
