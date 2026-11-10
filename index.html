@@ -1081,19 +1081,26 @@ document.getElementById("barcode-btn").addEventListener("click",function(){
 function noKeyHtml(){return '<div class="nokey"><strong>No API key saved yet</strong><p class="small-txt" style="margin:6px 0">AI features need your free Google AI Studio key.</p><button class="primary" data-go="settings">Go to Settings — add API key</button></div>';}
 function gemini(parts){
  var key=state.apiKey;
- return fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",{
+ return fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",{
   method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},
   body:JSON.stringify({contents:[{parts:parts}]})
  }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};});})
  .then(function(res){
    if(!res.ok){var msg=(res.j.error&&res.j.error.message)||"Request failed";
-     if(res.status===429||/quota|rate/i.test(msg))throw new Error("CAP");
-     throw new Error(msg);}
+     if(res.status===402||/prepayment credits are depleted|prepay/i.test(msg))throw new Error("PREPAY");
+     if(res.status===404||/no longer available|not found/i.test(msg))throw new Error("MODEL_RETIRED");
+     if(res.status===429||/quota|rate|daily|limit/i.test(msg))throw new Error("CAP");
+     throw new Error("OTHER");}
    var txt=res.j.candidates&&res.j.candidates[0]&&res.j.candidates[0].content&&res.j.candidates[0].content.parts.map(function(p){return p.text||"";}).join("");
    return txt||"";
  });
 }
-function geminiErr(e){return e.message==="CAP"?"The free daily AI cap looks hit — Google resets it daily. Try again tomorrow, or log the food manually.":("AI error: "+e.message);}
+function geminiErr(e){
+ if(e&&e.message==="PREPAY")return "Your Gemini prepaid balance is $0 — add credit in AI Studio Billing to use AI features. Everything else in the app still works.";
+ if(e&&e.message==="MODEL_RETIRED")return "Google retired this AI model — update the app to the newest version with the Refresh button.";
+ if(e&&e.message==="CAP")return "Daily AI limit reached — try again tomorrow. Everything else in the app still works.";
+ return "AI ran into a problem — try again in a bit. Everything else in the app still works.";
+}
 function parseJson(txt){var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Couldn't read the AI reply.");return JSON.parse(m[0]);}
 function renderAiArea(){
  var el=document.getElementById("ai-area");
