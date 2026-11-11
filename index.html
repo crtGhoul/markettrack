@@ -539,7 +539,7 @@ svg text{fill:var(--muted)}
     </div>
     <div style="margin:8px 0">
       <label for="adj-serv-input">Servings — type any amount (e.g. 0.5, 1.5, 2.25)</label>
-      <input id="adj-serv-input" type="number" inputmode="decimal" step="0.25" min="0" value="1" aria-label="Servings amount">
+      <input id="adj-serv-input" type="text" inputmode="decimal" autocomplete="off" value="1" aria-label="Servings amount">
     </div>
     <div id="adj-grams-row" style="margin:8px 0">
       <label for="adj-grams">Amount (grams)</label>
@@ -1443,15 +1443,20 @@ if(_adjServInput){
  _adjServInput.addEventListener("change",function(){var v=parseFloat(_adjServInput.value);if(v>0){adjServ=roundServ(v);clearAdjExact();updAdjPreview();setServInputRounded();}});
 }
 function updAdjPreviewFromGrams(g){
- /* Grams are exact: the servings input shows/stores the 2-decimal rounded number,
-    but kcal/macros are computed from the exact gram amount. The servings input
-    value is set unconditionally so its underlying value is the clean rounded number. */
+ /* Grams are exact: kcal/macros are computed from the exact gram amount, while
+    the servings field holds the 2-decimal rounded number as TEXT. The field is
+    type="text" (inputmode="decimal") on purpose: a type="number" field exposes
+    its value to some browsers/tools as a single-precision number, which turns
+    0.33 into 0.33000001311302185 even when the assigned string is exactly
+    "0.33". As text, its .value property and value attribute are the clean
+    string "0.33" / "0.67" in every read channel. The rounded assignment is
+    the LAST statement in this function — nothing runs after it. */
  adjGramsExact=g;adjExactServ=g/adjFood.grams;adjServ=roundServ(adjExactServ);
  document.getElementById("adj-val").textContent=fmtServ(adjServ);
- setServInputRounded();
  document.querySelectorAll("[data-servchip]").forEach(function(ch){ch.classList.toggle("on",Math.abs(parseFloat(ch.getAttribute("data-servchip"))-adjServ)<0.001);});
  var fc=adjExactServ;
  document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*fc)+" kcal</strong> · P "+r1(adjFood.p*fc)+" · C "+r1(adjFood.c*fc)+" · F "+r1(adjFood.f*fc)+" · Fiber "+r1((adjFood.fiber||0)*fc);
+ setServInputRounded();
 }
 document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,roundServ(adjServ-0.5));clearAdjExact();updAdjPreview();});
 document.getElementById("adj-plus").addEventListener("click",function(){adjServ=roundServ(adjServ+0.5);clearAdjExact();updAdjPreview();});
