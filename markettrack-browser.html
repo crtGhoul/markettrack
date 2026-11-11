@@ -780,7 +780,7 @@ textarea{resize:vertical}
       <p class="small-txt" style="margin-top:0">Home-screen apps can show an old cached copy. Use Refresh to save everything first, then load the newest version.</p>
       <div class="row wrap" style="margin:10px 0">
         <span class="saved-pill" id="saved-settings"><span class="dot-live"></span><span id="saved-settings-txt">Saved ✓</span></span>
-        <span class="version-stamp">MarketTrack — updated Nov 11, 2026 · v62</span>
+        <span class="version-stamp">MarketTrack — updated Nov 11, 2026 · v63</span>
       </div>
       <button class="primary refresh-btn" id="refresh-settings" type="button" style="width:100%;justify-content:center">↻ Refresh app — save &amp; load newest version</button>
       <p class="muted small-txt" style="margin:8px 0 0">This saves all your logs, keys, targets and foods to this browser right before it reloads, so nothing is lost.</p>
@@ -805,6 +805,7 @@ textarea{resize:vertical}
       <select id="ai-provider-select" aria-label="AI provider">
         <option value="gemini">Gemini (Google AI Studio)</option>
         <option value="groq">Groq (free)</option>
+        <option value="nvidia">NVIDIA NIM (free)</option>
       </select>
       <div id="ai-provider-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Each provider has its own key box below — paste the key for the one you picked. If that provider fails, the app tells you and does <strong>not</strong> quietly switch to another one.</p>
@@ -860,6 +861,25 @@ textarea{resize:vertical}
       </div>
       <div id="groq-key-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Your Groq key is saved only in this browser, on this device, and is sent only to Groq when you use an AI feature with Groq picked.</p>
+      <hr class="sep">
+      <h3 style="margin:0 0 6px">NVIDIA NIM API key <span class="muted small-txt">— free, used only when NVIDIA NIM is the picked provider</span></h3>
+      <p class="small-txt" style="margin-top:0">NVIDIA NIM runs the Nemotron 3.5 Super VL vision model (free, no card) — it reads label photos straight from NVIDIA's own servers. The key is a free <strong>nvapi-</strong> key for prototyping — no card required.</p>
+      <ol class="steps">
+        <li>Open <a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a> and sign in — a free NVIDIA Developer Program account (phone verification may be required).</li>
+        <li>Open the Nemotron 3.5 Super VL model and tap <strong>Get API Key</strong> — it's free.</li>
+        <li>Copy the key (it starts with <strong>nvapi-</strong>), paste it below, and tap Save.</li>
+      </ol>
+      <label for="nvidia-key-input">NVIDIA NIM API key — paste here</label>
+      <div class="row">
+        <input id="nvidia-key-input" type="password" placeholder="Paste your NVIDIA nvapi- key here" autocomplete="off" aria-label="NVIDIA NIM API key">
+        <button id="nvidia-key-show" type="button">Show</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary grow" id="nvidia-key-save">Save NVIDIA key</button>
+        <button id="nvidia-key-clear">Remove</button>
+      </div>
+      <div id="nvidia-key-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Your NVIDIA key is saved only in this browser, on this device, and is sent only to NVIDIA (integrate.api.nvidia.com) when you use an AI feature with NVIDIA NIM picked.</p>
     </div>
 
     <div class="card">
@@ -995,7 +1015,7 @@ textarea{resize:vertical}
         <button id="clear-data" style="color:var(--red)">Erase everything</button>
       </div>
       <div id="data-msg" style="margin-top:8px"></div>
-      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 11, 2026 · v62 · Browser version · Saves in this browser only</p>
+      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 11, 2026 · v63 · Browser version · Saves in this browser only</p>
     </div>
 
     <button class="primary" data-go="today" style="width:100%;min-height:52px;font-size:1.05rem">Done — back to Today</button>
@@ -1810,7 +1830,7 @@ function sourceBadgeHtml(f){
 
 /* ================= State ================= */
 var KEY="markettrack-v1";
-var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",aiProvider:"gemini",groqKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
+var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",aiProvider:"gemini",groqKey:"",nvidiaKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
  profile:{weightLb:180,heightIn:68,age:30,sex:"male",activity:"moderate",lossRate:1},
  days:{},customFoods:[],savedMeals:[],goalWeightLb:null,dietPreset:"",checkin:{lastAt:null,lastDismissedAt:null,history:[]},
  fasting:{active:null,history:[]},mealPlan:{},basket:[],mealTargets:null,
@@ -1819,7 +1839,7 @@ function loadState(){
  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object"){
    s.targets=Object.assign({},DEFAULTS.targets,s.targets||{});
    s.profile=Object.assign({},DEFAULTS.profile,s.profile||{});
-   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";s.groqKey=s.groqKey||"";if(s.aiProvider!=="groq")s.aiProvider="gemini";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
+   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";s.groqKey=s.groqKey||"";s.nvidiaKey=s.nvidiaKey||"";if(s.aiProvider!=="groq"&&s.aiProvider!=="nvidia")s.aiProvider="gemini";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
@@ -2785,16 +2805,17 @@ function geminiErr(e){
  if(e&&e.message==="CAP")return "Daily AI limit reached — try again tomorrow. Everything else in the app still works.";
  return "AI ran into a problem — try again in a bit. Everything else in the app still works.";
 }
-/* ================= AI provider picker (Gemini / Groq) =================
+/* ================= AI provider picker (Gemini / Groq / NVIDIA NIM) =================
    AI fill-in and label scan call aiCall(), which routes to the ONE provider
-   picked in Settings. Gemini keeps its existing fallback chain; Groq never
-   falls back to another provider — a failure is reported with the
-   provider's name so the user can test one provider at a time. */
-function aiProvider(){return state.aiProvider==="groq"?"groq":"gemini";}
-function aiProviderName(p){return p==="groq"?"Groq":"Gemini";}
+   picked in Settings. Gemini keeps its existing fallback chain; Groq and
+   NVIDIA NIM never fall back to another provider — a failure is reported
+   with the provider's name so the user can test one provider at a time. */
+function aiProvider(){return (state.aiProvider==="groq"||state.aiProvider==="nvidia")?state.aiProvider:"gemini";}
+function aiProviderName(p){return p==="groq"?"Groq":(p==="nvidia"?"NVIDIA NIM":"Gemini");}
 function aiReady(){
  var p=aiProvider();
  if(p==="groq")return !!((state.groqKey||"").trim());
+ if(p==="nvidia")return !!((state.nvidiaKey||"").trim());
  return !!(state.apiKey||state.backupApiKey);
 }
 function noKeyProviderHtml(){
@@ -2853,6 +2874,64 @@ function groqCall(parts){
    throw providerFail(name,"couldn't reach "+name+" — check your internet connection and try again.");
  });
 }
+/* Nemotron's reasoning is ON by default on NVIDIA's endpoint and can eat
+   the whole reply, leaving message.content empty (the failure that broke
+   this same model on other routers). Read the reply robustly: content
+   first, then reasoning_content, then reasoning, with <think> blocks
+   stripped — the callers' parseJson() then extracts the JSON object from
+   whatever text remains. */
+function readChatText(msg){
+ if(!msg)return "";
+ function asText(v){
+  if(!v)return "";
+  if(typeof v==="string")return v;
+  if(Array.isArray(v)){var out="";v.forEach(function(part){if(part&&typeof part.text==="string")out+=part.text;});return out;}
+  return "";
+ }
+ function stripThink(t){return String(t||"").replace(/<think>[\s\S]*?<\/think>/gi,"").trim();}
+ var c=stripThink(asText(msg.content));
+ if(c)return c;
+ var rc=stripThink(asText(msg.reasoning_content));
+ if(rc)return rc;
+ return stripThink(asText(msg.reasoning));
+}
+function nvidiaCall(parts){
+ var name="NVIDIA";
+ var key=((state.nvidiaKey||"").trim());
+ var headers={"Content-Type":"application/json","Authorization":"Bearer "+key};
+ var body={model:"nvidia/nemotron-3.5-super-vl-120b-a12b",
+  messages:[{role:"user",content:partsToOpenAI(parts)}],
+  temperature:0,
+  max_tokens:1024,
+  /* Ask the endpoint to skip Nemotron's built-in reasoning so the reply
+     itself carries the answer; readChatText() still handles a
+     reasoning-heavy reply if this is ignored. No JSON mode is forced —
+     the robust reader + parseJson() handle plain-text replies. */
+  chat_template_kwargs:{enable_thinking:false}};
+ return fetch("https://integrate.api.nvidia.com/v1/chat/completions",{
+  method:"POST",headers:headers,body:JSON.stringify(body)
+ }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
+ .then(function(res){
+   if(!res.ok){
+     var apiMsg=(res.j.error&&res.j.error.message)||(res.j.detail||"");
+     if(res.status===401||res.status===403)throw providerFail(name,"that key was rejected — check the NVIDIA key in Settings and try again."+(apiMsg?" ("+apiMsg+")":""));
+     if(res.status===429){
+       /* Exactly one request per tap — never auto-retry a 429, or a failed
+          tap would burn the user's free request allowance. */
+       throw providerFail(name,"rate limit reached — the free tier allows about 40 requests a minute and 10,000 a day. Wait a bit and try once more. Your key is fine. Everything else in the app still works.");
+     }
+     if(res.status===404)throw providerFail(name,"the vision model wasn't found — it may have moved. ("+(apiMsg||"HTTP 404")+")");
+     throw providerFail(name,(apiMsg||("the request was refused (HTTP "+res.status+")"))+" — try again in a bit.");
+   }
+   var msg=(res.j.choices&&res.j.choices[0]&&res.j.choices[0].message)||null;
+   var txt=readChatText(msg);
+   if(!txt||!String(txt).trim())throw providerFail(name,"the reply came back empty — try again.");
+   return {text:txt,note:"via NVIDIA"};
+ }).catch(function(e){
+   if(e&&e.plain)throw e;
+   throw providerFail(name,"couldn't reach NVIDIA — check your internet connection and try again.");
+ });
+}
 function aiCall(parts){
  var p=aiProvider();
  if(p==="gemini"){
@@ -2865,6 +2944,7 @@ function aiCall(parts){
  if(!aiReady()){
    var e=new Error("NO_PROVIDER_KEY");e.plain="No "+aiProviderName(p)+" key saved yet — paste it in Settings.";return Promise.reject(e);
  }
+ if(p==="nvidia")return nvidiaCall(parts);
  return groqCall(parts);
 }
 function parseJson(txt){var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Couldn't read the AI reply.");return JSON.parse(m[0]);}
@@ -3976,6 +4056,8 @@ function renderSettings(){
  var apSt=document.getElementById("ai-provider-status");if(apSt)apSt.innerHTML='<span class="ok-msg">AI provider: '+esc(aiProviderName(aiProvider()))+'</span>'+(aiReady()?'':' <span class="muted small-txt">— no '+esc(aiProviderName(aiProvider()))+' key saved yet, add it below.</span>');
  var gk=document.getElementById("groq-key-input");if(gk)gk.value=state.groqKey||"";
  var gks=document.getElementById("groq-key-status");if(gks)gks.innerHTML=state.groqKey?'<span class="ok-msg">✓ Groq key saved in this browser.</span>':'<span class="muted small-txt">No Groq key saved yet.</span>';
+ var nk=document.getElementById("nvidia-key-input");if(nk)nk.value=state.nvidiaKey||"";
+ var nks=document.getElementById("nvidia-key-status");if(nks)nks.innerHTML=state.nvidiaKey?'<span class="ok-msg">✓ NVIDIA key saved in this browser.</span>':'<span class="muted small-txt">No NVIDIA key saved yet.</span>';
  document.getElementById("api-key-input").value=state.apiKey||"";
  document.getElementById("key-status").innerHTML=state.apiKey?'<span class="ok-msg">✓ Key saved in this browser.</span>':'<span class="muted small-txt">No key saved yet.</span>';
  var bkEl=document.getElementById("backup-key-input");if(bkEl)bkEl.value=state.backupApiKey||"";
@@ -4036,7 +4118,7 @@ document.getElementById("usda-key-show").addEventListener("click",function(){
 /* AI provider picker + Groq key — same save pattern as the
    Gemini and USDA boxes: keys live only in this browser's saved state. */
 var _apSel=document.getElementById("ai-provider-select");if(_apSel)_apSel.addEventListener("change",function(){
- state.aiProvider=(this.value==="groq")?this.value:"gemini";save();renderSettings();
+ state.aiProvider=(this.value==="groq"||this.value==="nvidia")?this.value:"gemini";save();renderSettings();
  toast("AI provider set to "+aiProviderName(aiProvider())+" — AI fill-in and label scan now use "+aiProviderName(aiProvider())+".");
 });
 var _gks=document.getElementById("groq-key-save");if(_gks)_gks.addEventListener("click",function(){
@@ -4047,6 +4129,16 @@ var _gks=document.getElementById("groq-key-save");if(_gks)_gks.addEventListener(
 var _gkc=document.getElementById("groq-key-clear");if(_gkc)_gkc.addEventListener("click",function(){state.groqKey="";save();renderSettings();toast("Groq API key removed.");});
 var _gksh=document.getElementById("groq-key-show");if(_gksh)_gksh.addEventListener("click",function(){
  var i=document.getElementById("groq-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
+});
+/* NVIDIA NIM key — same save pattern as the other key boxes. */
+var _nks=document.getElementById("nvidia-key-save");if(_nks)_nks.addEventListener("click",function(){
+ var v=document.getElementById("nvidia-key-input").value.trim();
+ if(!v){toast("Paste your NVIDIA API key first.");return;}
+ state.nvidiaKey=v;save();renderSettings();toast("NVIDIA API key saved in this browser.");
+});
+var _nkc=document.getElementById("nvidia-key-clear");if(_nkc)_nkc.addEventListener("click",function(){state.nvidiaKey="";save();renderSettings();toast("NVIDIA API key removed.");});
+var _nksh=document.getElementById("nvidia-key-show");if(_nksh)_nksh.addEventListener("click",function(){
+ var i=document.getElementById("nvidia-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
 /* Show micronutrients toggle — display only; saves with the rest of the
    settings (same localStorage state), never touches stored micro data. */
