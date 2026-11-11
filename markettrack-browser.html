@@ -795,8 +795,19 @@ textarea{resize:vertical}
     </div>
 
     <div class="card" style="border:2px solid var(--amber-line)">
-      <h2>🔑 1 · Google AI Studio (Gemini) API key</h2>
-      <p class="small-txt" style="margin-top:0"><strong>What it powers:</strong> AI fill-in + nutrition-label photo scan in Foods. <strong>Where it goes:</strong> paste it in the box below — this is the Gemini key, not the USDA key. Everything else works without it.</p>
+      <h2>🔑 1 · AI provider &amp; API keys</h2>
+      <p class="small-txt" style="margin-top:0"><strong>What it powers:</strong> AI fill-in + nutrition-label photo scan in Foods. Pick <strong>one</strong> provider below — the app uses only that one for AI fill-in and label scan, so you can test each on its own. Everything else works without any key.</p>
+      <label for="ai-provider-select">AI provider</label>
+      <select id="ai-provider-select" aria-label="AI provider">
+        <option value="gemini">Gemini (Google AI Studio)</option>
+        <option value="groq">Groq (free)</option>
+        <option value="openrouter">OpenRouter (free)</option>
+      </select>
+      <div id="ai-provider-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Each provider has its own key box below — paste the key for the one you picked. If that provider fails, the app tells you and does <strong>not</strong> quietly switch to another one.</p>
+      <hr class="sep">
+      <h3 style="margin:0 0 6px">Google AI Studio (Gemini) API key</h3>
+      <p class="small-txt" style="margin-top:0"><strong>Where it goes:</strong> paste it in the box below — this is the Gemini key, not the USDA key.</p>
       <ol class="steps">
         <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with Google.</li>
         <li>Tap <strong>Create API key</strong> — it's free.</li>
@@ -827,6 +838,44 @@ textarea{resize:vertical}
       </div>
       <div id="backup-key-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Backup key is saved only in this browser, on this device, and is sent only to Google when a Gemini call needs the fallback.</p>
+      <hr class="sep">
+      <h3 style="margin:0 0 6px">Groq API key <span class="muted small-txt">— free, used only when Groq is the picked provider</span></h3>
+      <p class="small-txt" style="margin-top:0">Groq runs the Llama 4 Scout vision model — it reads label photos and answers fast. Free, no card.</p>
+      <ol class="steps">
+        <li>Open <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> and sign in.</li>
+        <li>Tap <strong>Create API Key</strong> — it's free.</li>
+        <li>Copy the key, paste it below, and tap Save.</li>
+      </ol>
+      <label for="groq-key-input">Groq API key — paste here</label>
+      <div class="row">
+        <input id="groq-key-input" type="password" placeholder="Paste your Groq key here" autocomplete="off" aria-label="Groq API key">
+        <button id="groq-key-show" type="button">Show</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary grow" id="groq-key-save">Save Groq key</button>
+        <button id="groq-key-clear">Remove</button>
+      </div>
+      <div id="groq-key-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Your Groq key is saved only in this browser, on this device, and is sent only to Groq when you use an AI feature with Groq picked.</p>
+      <hr class="sep">
+      <h3 style="margin:0 0 6px">OpenRouter API key <span class="muted small-txt">— free, used only when OpenRouter is the picked provider</span></h3>
+      <p class="small-txt" style="margin-top:0">OpenRouter runs the Gemma 4 31B vision model (free version) — it reads label photos too. Free, no card.</p>
+      <ol class="steps">
+        <li>Open <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and sign in.</li>
+        <li>Tap <strong>Create Key</strong> — it's free.</li>
+        <li>Copy the key, paste it below, and tap Save.</li>
+      </ol>
+      <label for="openrouter-key-input">OpenRouter API key — paste here</label>
+      <div class="row">
+        <input id="openrouter-key-input" type="password" placeholder="Paste your OpenRouter key here" autocomplete="off" aria-label="OpenRouter API key">
+        <button id="openrouter-key-show" type="button">Show</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary grow" id="openrouter-key-save">Save OpenRouter key</button>
+        <button id="openrouter-key-clear">Remove</button>
+      </div>
+      <div id="openrouter-key-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Your OpenRouter key is saved only in this browser, on this device, and is sent only to OpenRouter when you use an AI feature with OpenRouter picked.</p>
     </div>
 
     <div class="card">
@@ -1777,7 +1826,7 @@ function sourceBadgeHtml(f){
 
 /* ================= State ================= */
 var KEY="markettrack-v1";
-var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
+var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",aiProvider:"gemini",groqKey:"",openrouterKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
  profile:{weightLb:180,heightIn:68,age:30,sex:"male",activity:"moderate",lossRate:1},
  days:{},customFoods:[],savedMeals:[],goalWeightLb:null,dietPreset:"",checkin:{lastAt:null,lastDismissedAt:null,history:[]},
  fasting:{active:null,history:[]},mealPlan:{},basket:[],mealTargets:null,
@@ -1786,7 +1835,7 @@ function loadState(){
  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object"){
    s.targets=Object.assign({},DEFAULTS.targets,s.targets||{});
    s.profile=Object.assign({},DEFAULTS.profile,s.profile||{});
-   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
+   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";s.groqKey=s.groqKey||"";s.openrouterKey=s.openrouterKey||"";if(s.aiProvider!=="groq"&&s.aiProvider!=="openrouter")s.aiProvider="gemini";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
@@ -2752,16 +2801,95 @@ function geminiErr(e){
  if(e&&e.message==="CAP")return "Daily AI limit reached — try again tomorrow. Everything else in the app still works.";
  return "AI ran into a problem — try again in a bit. Everything else in the app still works.";
 }
+/* ================= AI provider picker (Gemini / Groq / OpenRouter) =================
+   AI fill-in and label scan call aiCall(), which routes to the ONE provider
+   picked in Settings. Gemini keeps its existing fallback chain; Groq and
+   OpenRouter never fall back to another provider — a failure is reported
+   with the provider's name so the user can test one provider at a time. */
+function aiProvider(){return (state.aiProvider==="groq"||state.aiProvider==="openrouter")?state.aiProvider:"gemini";}
+function aiProviderName(p){return p==="groq"?"Groq":p==="openrouter"?"OpenRouter":"Gemini";}
+function aiReady(){
+ var p=aiProvider();
+ if(p==="groq")return !!((state.groqKey||"").trim());
+ if(p==="openrouter")return !!((state.openrouterKey||"").trim());
+ return !!(state.apiKey||state.backupApiKey);
+}
+function noKeyProviderHtml(){
+ var p=aiProvider();
+ if(p==="gemini")return noKeyHtml();
+ var name=aiProviderName(p);
+ return '<div class="nokey"><strong>No '+name+' key saved yet — paste it in Settings</strong><p class="small-txt" style="margin:6px 0">You picked '+name+' as your AI provider, so AI fill-in and label scan need your free '+name+' key.</p><button class="primary" data-go="settings">Go to Settings — add '+name+' key</button></div>';
+}
+function aiErrText(e){
+ if(e&&e.plain)return e.plain;
+ return geminiErr(e);
+}
+function providerFail(name,detail){
+ var e=new Error("PROVIDER_FAIL");e.plain=name+" failed: "+detail;return e;
+}
+/* Gemini-style parts -> OpenAI chat content (text parts + base64 image_url).
+   All instructions stay in the single user message — Groq's Llama 4 vision
+   rejects system prompts, so no system message is ever sent. */
+function partsToOpenAI(parts){
+ var content=[];
+ parts.forEach(function(p){
+  if(p.text)content.push({type:"text",text:p.text});
+  else if(p.inline_data)content.push({type:"image_url",image_url:{url:"data:"+(p.inline_data.mime_type||"image/jpeg")+";base64,"+p.inline_data.data}});
+ });
+ return content;
+}
+function openAICompatCall(provider,parts){
+ var isGroq=provider==="groq";
+ var name=isGroq?"Groq":"OpenRouter";
+ var key=((isGroq?state.groqKey:state.openrouterKey)||"").trim();
+ var headers={"Content-Type":"application/json","Authorization":"Bearer "+key};
+ if(!isGroq){headers["HTTP-Referer"]="https://crtghoul.github.io/markettrack/";headers["X-Title"]="MarketTrack";}
+ var body={model:isGroq?"meta-llama/llama-4-scout-17b-16e-instruct":"google/gemma-4-31b-it:free",
+  messages:[{role:"user",content:partsToOpenAI(parts)}],
+  response_format:{type:"json_object"},temperature:0};
+ return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
+  method:"POST",headers:headers,body:JSON.stringify(body)
+ }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
+ .then(function(res){
+   if(!res.ok){
+     var apiMsg=(res.j.error&&res.j.error.message)||"";
+     if(res.status===401||res.status===403)throw providerFail(name,"that key was rejected — check the "+name+" key in Settings and try again."+(apiMsg?" ("+apiMsg+")":""));
+     if(res.status===429)throw providerFail(name,"rate limit reached — wait a bit and try again. Everything else in the app still works.");
+     if(res.status===404)throw providerFail(name,"the vision model wasn't found — it may have moved. ("+(apiMsg||"HTTP 404")+")");
+     throw providerFail(name,(apiMsg||("the request was refused (HTTP "+res.status+")"))+" — try again in a bit.");
+   }
+   var txt=res.j.choices&&res.j.choices[0]&&res.j.choices[0].message&&(res.j.choices[0].message.content||"");
+   if(!txt)throw providerFail(name,"the reply came back empty — try again.");
+   return {text:txt,note:"via "+name};
+ }).catch(function(e){
+   if(e&&e.plain)throw e;
+   throw providerFail(name,"couldn't reach "+name+" — check your internet connection and try again.");
+ });
+}
+function aiCall(parts){
+ var p=aiProvider();
+ if(p==="gemini"){
+   return gemini(parts).then(function(res){
+     var base=(res&&typeof res==="object")?res:{text:res,note:""};
+     var note=base.note?base.note+" · via Gemini":"via Gemini";
+     return {text:base.text,note:note};
+   });
+ }
+ if(!aiReady()){
+   var e=new Error("NO_PROVIDER_KEY");e.plain="No "+aiProviderName(p)+" key saved yet — paste it in Settings.";return Promise.reject(e);
+ }
+ return openAICompatCall(p,parts);
+}
 function parseJson(txt){var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Couldn't read the AI reply.");return JSON.parse(m[0]);}
 function renderAiArea(){
  var el=document.getElementById("ai-area");
- if(!state.apiKey&&!state.backupApiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
+ if(!aiReady()){el.innerHTML=noKeyProviderHtml();bindGo(el);return;}
  el.innerHTML='<div class="row"><input id="ai-input" placeholder="e.g. large chicken burrito with rice and cheese"><button class="primary" id="ai-btn">Estimate</button></div><div id="ai-result" style="margin-top:8px"></div>';
  document.getElementById("ai-btn").addEventListener("click",function(){
    var q=document.getElementById("ai-input").value.trim(),out=document.getElementById("ai-result");
    if(!q){toast("Describe the food first.");return;}
-   out.innerHTML='<p class="muted small-txt">Asking AI…</p>';
-   gemini([{text:'Estimate nutrition for one serving of: "'+q+'". Reply with ONLY JSON: {"name":"...","serving":"1 serving","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving weight in grams (0 if truly unknown).'}])
+   out.innerHTML='<p class="muted small-txt">Asking '+esc(aiProviderName(aiProvider()))+'…</p>';
+   aiCall([{text:'Estimate nutrition for one serving of: "'+q+'". Reply with ONLY JSON: {"name":"...","serving":"1 serving","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving weight in grams (0 if truly unknown).'}])
     .then(function(res){var txt=(res&&typeof res==="object")?res.text:res;var fallbackNote=(res&&res.note)?res.note:"";var d=parseJson(txt);
       var base={name:d.name||q,serving:d.serving||"1 serving",grams:d.servingGrams?Math.round(d.servingGrams):"",kcal:Math.round(d.kcal||0),p:r1(d.protein||0),c:r1(d.carbs||0),f:r1(d.fat||0),fiber:r1(d.fiber||0)};
       out.innerHTML='<div class="food-card" style="margin:0"><div class="row"><span class="grow"><strong>Review the AI estimate</strong> <span class="badge ai">AI estimate</span></span></div>'
@@ -2787,19 +2915,19 @@ function renderAiArea(){
          index if new AND logs it with the chosen servings/grams. */
       document.getElementById("ai-log").addEventListener("click",function(){var f=readAiPreview();openAdjust(f,document.getElementById("log-meal").value,true);});
       document.getElementById("ai-save").addEventListener("click",function(){var f=readAiPreview();openAdjust(f,document.getElementById("log-meal").value,true);});
-    }).catch(function(e){out.innerHTML='<p class="err">'+esc(geminiErr(e))+'</p>';});
+    }).catch(function(e){out.innerHTML='<p class="err">'+esc(aiErrText(e))+'</p>';});
  });
 }
 function renderScanArea(){
  var el=document.getElementById("scan-area");if(!el)return;
- if(!state.apiKey&&!state.backupApiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
- el.innerHTML='<p class="muted small-txt" style="margin-top:0">Take or pick a photo of the nutrition label — AI reads it and fills the form below.</p><input type="file" id="scan-file" accept="image/*"><div id="scan-msg" style="margin-top:8px"></div><div id="scan-preview" style="margin-top:10px"></div>';
+ if(!aiReady()){el.innerHTML=noKeyProviderHtml();bindGo(el);return;}
+ el.innerHTML='<p class="muted small-txt" style="margin-top:0">Take or pick a photo of the nutrition label — '+esc(aiProviderName(aiProvider()))+' reads it and fills the form below.</p><input type="file" id="scan-file" accept="image/*"><div id="scan-msg" style="margin-top:8px"></div><div id="scan-preview" style="margin-top:10px"></div>';
  document.getElementById("scan-file").addEventListener("change",function(ev){
-   var file=ev.target.files[0];if(!file)return;var msg=document.getElementById("scan-msg");msg.innerHTML='<span class="muted small-txt">Reading the label…</span>';
+   var file=ev.target.files[0];if(!file)return;var msg=document.getElementById("scan-msg");msg.innerHTML='<span class="muted small-txt">Reading the label with '+esc(aiProviderName(aiProvider()))+'…</span>';
    var rd=new FileReader();
    rd.onload=function(){
      var b64=String(rd.result).split(",")[1];
-     gemini([{text:'Read this nutrition label photo. Reply with ONLY JSON: {"name":"product name if visible else Food","serving":"serving size text","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving size weight in grams taken from the label (for example 30 if the label says 30g; 0 if the label gives no gram weight).'},{inline_data:{mime_type:file.type||"image/jpeg",data:b64}}])
+     aiCall([{text:'Read this nutrition label photo. Reply with ONLY JSON: {"name":"product name if visible else Food","serving":"serving size text","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving size weight in grams taken from the label (for example 30 if the label says 30g; 0 if the label gives no gram weight).'},{inline_data:{mime_type:file.type||"image/jpeg",data:b64}}])
       .then(function(res){var txt=(res&&typeof res==="object")?res.text:res;var fallbackNote=(res&&res.note)?res.note:"";var d=parseJson(txt);
         document.getElementById("cf-name").value=d.name||"";
         document.getElementById("cf-serving").value=d.serving||"";
@@ -2809,7 +2937,7 @@ function renderScanArea(){
         document.getElementById("cf-f").value=r1(d.fat||0);document.getElementById("cf-fiber").value=r1(d.fiber||0);
         msg.innerHTML='<span class="ok-msg">Label read — review the preview below, fix anything, then save.</span>'+(fallbackNote?'<br><span class="muted small-txt">'+esc(fallbackNote)+'</span>':"");
         renderScanPreview(d);
-      }).catch(function(e){msg.innerHTML='<span class="err">'+esc(geminiErr(e))+'</span>';});
+      }).catch(function(e){msg.innerHTML='<span class="err">'+esc(aiErrText(e))+'</span>';});
    };
    rd.readAsDataURL(file);
  });
@@ -3857,6 +3985,12 @@ function renderCalcPreview(){
 function renderSettings(){
  var smT=document.getElementById("show-micros-toggle");if(smT)smT.setAttribute("aria-checked",showMicrosOn()?"true":"false");
  var smS=document.getElementById("show-micros-status");if(smS)smS.innerHTML=showMicrosOn()?'<span class="ok-msg">Micronutrients are shown.</span>':'<span class="muted small-txt">Micronutrients are hidden — your logged data is unchanged.</span>';
+ var apSel=document.getElementById("ai-provider-select");if(apSel)apSel.value=aiProvider();
+ var apSt=document.getElementById("ai-provider-status");if(apSt)apSt.innerHTML='<span class="ok-msg">AI provider: '+esc(aiProviderName(aiProvider()))+'</span>'+(aiReady()?'':' <span class="muted small-txt">— no '+esc(aiProviderName(aiProvider()))+' key saved yet, add it below.</span>');
+ var gk=document.getElementById("groq-key-input");if(gk)gk.value=state.groqKey||"";
+ var gks=document.getElementById("groq-key-status");if(gks)gks.innerHTML=state.groqKey?'<span class="ok-msg">✓ Groq key saved in this browser.</span>':'<span class="muted small-txt">No Groq key saved yet.</span>';
+ var ork=document.getElementById("openrouter-key-input");if(ork)ork.value=state.openrouterKey||"";
+ var orks=document.getElementById("openrouter-key-status");if(orks)orks.innerHTML=state.openrouterKey?'<span class="ok-msg">✓ OpenRouter key saved in this browser.</span>':'<span class="muted small-txt">No OpenRouter key saved yet.</span>';
  document.getElementById("api-key-input").value=state.apiKey||"";
  document.getElementById("key-status").innerHTML=state.apiKey?'<span class="ok-msg">✓ Key saved in this browser.</span>':'<span class="muted small-txt">No key saved yet.</span>';
  var bkEl=document.getElementById("backup-key-input");if(bkEl)bkEl.value=state.backupApiKey||"";
@@ -3913,6 +4047,30 @@ document.getElementById("usda-key-save").addEventListener("click",function(){
 document.getElementById("usda-key-clear").addEventListener("click",function(){state.usdaApiKey="";save();renderSettings();toast("USDA key removed.");});
 document.getElementById("usda-key-show").addEventListener("click",function(){
  var i=document.getElementById("usda-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
+});
+/* AI provider picker + Groq / OpenRouter keys — same save pattern as the
+   Gemini and USDA boxes: keys live only in this browser's saved state. */
+var _apSel=document.getElementById("ai-provider-select");if(_apSel)_apSel.addEventListener("change",function(){
+ state.aiProvider=(this.value==="groq"||this.value==="openrouter")?this.value:"gemini";save();renderSettings();
+ toast("AI provider set to "+aiProviderName(aiProvider())+" — AI fill-in and label scan now use "+aiProviderName(aiProvider())+".");
+});
+var _gks=document.getElementById("groq-key-save");if(_gks)_gks.addEventListener("click",function(){
+ var v=document.getElementById("groq-key-input").value.trim();
+ if(!v){toast("Paste your Groq API key first.");return;}
+ state.groqKey=v;save();renderSettings();toast("Groq API key saved in this browser.");
+});
+var _gkc=document.getElementById("groq-key-clear");if(_gkc)_gkc.addEventListener("click",function(){state.groqKey="";save();renderSettings();toast("Groq API key removed.");});
+var _gksh=document.getElementById("groq-key-show");if(_gksh)_gksh.addEventListener("click",function(){
+ var i=document.getElementById("groq-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
+});
+var _orks=document.getElementById("openrouter-key-save");if(_orks)_orks.addEventListener("click",function(){
+ var v=document.getElementById("openrouter-key-input").value.trim();
+ if(!v){toast("Paste your OpenRouter API key first.");return;}
+ state.openrouterKey=v;save();renderSettings();toast("OpenRouter API key saved in this browser.");
+});
+var _orkc=document.getElementById("openrouter-key-clear");if(_orkc)_orkc.addEventListener("click",function(){state.openrouterKey="";save();renderSettings();toast("OpenRouter API key removed.");});
+var _orksh=document.getElementById("openrouter-key-show");if(_orksh)_orksh.addEventListener("click",function(){
+ var i=document.getElementById("openrouter-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
 /* Show micronutrients toggle — display only; saves with the rest of the
    settings (same localStorage state), never touches stored micro data. */
