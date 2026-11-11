@@ -835,6 +835,17 @@ textarea{resize:vertical}
     <div class="card" id="webdav-card">
       <h2>☁️ WebDAV sync</h2>
       <p class="small-txt" style="margin-top:0">Sync your MarketTrack data to <strong>your own</strong> WebDAV server (for example a Nextcloud or a home server). “Sync now” uploads all of the app's data to a file called <strong>markettrack-data.json</strong> on that server; “Restore from server” downloads it and replaces what's in this browser. Your server address and login are saved only in this browser and sent only to that server. If the server doesn't allow web pages to connect (CORS), the sync can't reach it — the message below will say so plainly.</p>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0;background:var(--bg)">
+        <h3 style="margin:0 0 6px">Set up free sync — Koofr</h3>
+        <p class="small-txt" style="margin:0 0 8px">No server of your own? <strong>Koofr</strong> is free forever — 10 GB, no credit card required, and WebDAV is included on the free plan. It takes about two minutes to set up:</p>
+        <ol class="steps">
+          <li>Create a free account at <a href="https://koofr.eu" target="_blank" rel="noopener">koofr.eu</a>.</li>
+          <li>In Koofr, go to your account settings and generate an <strong>app password for WebDAV</strong> — use that app password here, not your main Koofr password.</li>
+          <li>Enter the server URL below, your Koofr account email as the username, and the app password, then tap <strong>Sync now</strong>.</li>
+        </ol>
+        <button class="primary" id="wd-koofr-preset" type="button" style="width:100%">Use Koofr (free) — fill server URL</button>
+        <p class="muted small-txt" style="margin:8px 0 0">The sync file is <strong>markettrack-data.json</strong>, stored in the root of your Koofr account. Your credentials are stored only in this browser and sent only to the Koofr server.</p>
+      </div>
       <div><label for="wd-url">WebDAV server URL</label><input id="wd-url" type="url" placeholder="https://cloud.example.com/remote.php/dav/files/me/" autocomplete="off"></div>
       <div class="grid2" style="margin-top:8px">
         <div><label for="wd-user">Username</label><input id="wd-user" autocomplete="off" placeholder="Your server username"></div>
@@ -4757,6 +4768,17 @@ function webdavRestore(btn){
  if(wdSync)wdSync.addEventListener("click",webdavSyncNow);
  var wdRestore=document.getElementById("wd-restore");
  if(wdRestore)wdRestore.addEventListener("click",function(){webdavRestore(wdRestore);});
+ var wdKoofr=document.getElementById("wd-koofr-preset");
+ if(wdKoofr)wdKoofr.addEventListener("click",function(){
+   var u=document.getElementById("wd-url");
+   if(u)u.value="https://app.koofr.net/dav/Koofr/";
+   webdavReadInputs();save();renderWebdav();
+   var st=document.getElementById("wd-status");
+   if(st)st.innerHTML='<span class="ok-msg">Koofr server URL filled ✓ — now enter your Koofr email as username and your app password, then tap Sync now.</span><br>'+webdavStatusHtml();
+   toast("Koofr URL filled — add your email and app password.");
+   var us=document.getElementById("wd-user");
+   if(us)us.focus();
+ });
 })();
 
 /* init */
