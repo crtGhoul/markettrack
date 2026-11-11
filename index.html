@@ -148,6 +148,13 @@ svg text{fill:var(--muted)}
 .saved-meal-foods{font-size:.85rem;color:var(--muted);margin:6px 0 10px;line-height:1.45}
 .meal-actions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
 .meal-actions button{font-size:.85rem}
+/* Meal editing: per-entry edit/delete + undo toast */
+.entry-btns{display:flex;gap:4px;flex:none;align-items:center}
+.icon-btn{width:38px;height:38px;min-height:38px;padding:0;border-radius:50%;font-size:.95rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.icon-btn.del{color:var(--red)}
+.log-entry-btns{display:flex;gap:4px;flex:none;align-items:flex-start;padding-top:2px}
+#toast button{background:#fff;color:#17211a;border:none;padding:5px 14px;min-height:32px;margin-left:10px;border-radius:999px;font-weight:800;font-size:.88rem}
+@media(max-width:420px){.entry{gap:6px}.stepper .val{min-width:30px}.stepper button{width:36px;height:36px;min-height:36px}}
 </style>
 </head>
 <body>
@@ -860,6 +867,30 @@ function r1(n){return Math.round(n*10)/10;}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 var toastTimer=null;
 function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.style.display="block";clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.style.display="none";},2600);}
+function toastUndo(msg,onUndo){
+ var t=document.getElementById("toast");if(!t){toast(msg);return;}
+ t.innerHTML="";t.appendChild(document.createTextNode(msg+" "));
+ var b=document.createElement("button");b.type="button";b.textContent="Undo";b.setAttribute("aria-label","Undo removal");
+ b.addEventListener("click",function(){clearTimeout(toastTimer);t.style.display="none";if(onUndo)onUndo();});
+ t.appendChild(b);t.style.display="block";clearTimeout(toastTimer);
+ toastTimer=setTimeout(function(){t.style.display="none";},6000);
+}
+function deleteEntryWithUndo(dayKeyStr,entryId,rerender){
+ var d=day(dayKeyStr);var idx=-1,i;
+ for(i=0;i<d.entries.length;i++){if(d.entries[i].id===entryId){idx=i;break;}}
+ if(idx<0)return;
+ var removed=d.entries[idx];
+ var snapshot=JSON.parse(JSON.stringify(removed));
+ d.entries.splice(idx,1);save();
+ if(rerender)rerender();
+ toastUndo("Removed "+snapshot.name,function(){
+   var dd=day(dayKeyStr);
+   var at=Math.min(idx,dd.entries.length);
+   dd.entries.splice(at,0,snapshot);save();
+   if(rerender)rerender();
+   toast("Restored "+snapshot.name);
+ });
+}
 function allFoods(){return state.customFoods.concat(CATALOG);}
 function findFood(id){var f=allFoods().filter(function(x){return x.id===id;});return f[0]||null;}
 function totals(k){var d=day(k),t={kcal:0,p:0,c:0,f:0,fiber:0,burned:0};d.entries.forEach(function(e){t.kcal+=e.kcal*e.servings;t.p+=e.p*e.servings;t.c+=e.c*e.servings;t.f+=e.f*e.servings;t.fiber+=e.fiber*e.servings;});d.activity.forEach(function(a){t.burned+=a.kcal;});return t;}
@@ -1048,9 +1079,9 @@ function renderToday(){
    var sub=es.reduce(function(s,e){return s+e.kcal*e.servings;},0);
    var rows=es.map(function(e){
      var eg=entryGrams(e);
-     return '<div class="entry"><div class="info"><div class="name">'+esc(e.name)+' <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span></div><div class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*e.servings)+' kcal · P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</div></div><div class="stepper"><button data-step="-0.5" data-eid="'+e.id+'" aria-label="Reduce servings">−</button><span class="val">'+fmtServ(e.servings)+'</span><button data-step="0.5" data-eid="'+e.id+'" aria-label="Add servings">+</button></div></div>';
+     return '<div class="entry"><div class="info"><div class="name">'+esc(e.name)+' <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span></div><div class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*e.servings)+' kcal · P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</div></div><div class="stepper"><button data-step="-0.5" data-eid="'+e.id+'" aria-label="Reduce servings">−</button><span class="val">'+fmtServ(e.servings)+'</span><button data-step="0.5" data-eid="'+e.id+'" aria-label="Add servings">+</button></div><div class="entry-btns"><button class="icon-btn" data-editentry="'+e.id+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-delentry="'+e.id+'" aria-label="Remove '+esc(e.name)+'">✕</button></div></div>';
    }).join("");
-   return '<div class="meal-block"><div class="meal-head"><span class="t">'+m[1]+(m[0]===cm&&dayKey(viewDate)===dayKey(new Date())?' <span class="muted small-txt">· current meal</span>':"")+'</span><span class="muted small-txt">'+fmt(sub)+' kcal</span></div>'+(rows||'<div class="entry"><span class="muted small-txt">Nothing logged yet.</span></div>')+'<div class="meal-actions"><button class="small" data-addmeal="'+m[0]+'">＋ Add food</button><button class="small" data-copymeal="'+m[0]+'">📋 Copy yesterday\'s '+mealNames[m[0]]+'</button><button class="small" data-savemeal="'+m[0]+'">🍱 Save this meal</button></div></div>';
+   return '<div class="meal-block"><div class="meal-head"><span class="t">'+m[1]+(m[0]===cm&&dayKey(viewDate)===dayKey(new Date())?' <span class="muted small-txt">· current meal</span>':"")+'</span><span class="muted small-txt">'+fmt(sub)+' kcal</span></div>'+(rows||'<div class="entry"><span class="muted small-txt">Nothing logged yet.</span></div>')+'<div class="meal-actions"><button class="small" data-addmeal="'+m[0]+'">+ Add food</button><button class="small" data-copymeal="'+m[0]+'">📋 Copy yesterday\'s '+mealNames[m[0]]+'</button><button class="small" data-savemeal="'+m[0]+'">🍱 Save this meal</button></div></div>';
  }).join("");
  document.querySelectorAll("[data-copymeal]").forEach(function(b){b.addEventListener("click",function(){copyYesterdayMeal(b.getAttribute("data-copymeal"));});});
  document.querySelectorAll("[data-savemeal]").forEach(function(b){b.addEventListener("click",function(){openSaveMeal(b.getAttribute("data-savemeal"));});});
@@ -1060,6 +1091,12 @@ function renderToday(){
    if(e.servings<=0){d.entries=d.entries.filter(function(x){return x.id!==e.id;});toast("Removed "+e.name);}
    else{var sg2=entryGrams(e).sg;if(sg2){e.servingGrams=sg2;e.grams=Math.round(e.servings*sg2);}}
    save();renderToday();
+ });});
+ document.querySelectorAll("[data-delentry]").forEach(function(b){b.addEventListener("click",function(){
+   deleteEntryWithUndo(k,b.getAttribute("data-delentry"),renderToday);
+ });});
+ document.querySelectorAll("[data-editentry]").forEach(function(b){b.addEventListener("click",function(){
+   var e=d.entries.filter(function(x){return x.id===b.getAttribute("data-editentry");})[0];if(e)openAdjustForEdit(e,k);
  });});
  document.querySelectorAll("[data-addmeal]").forEach(function(b){b.addEventListener("click",function(){
    document.getElementById("log-meal").value=b.getAttribute("data-addmeal");go("foods");
@@ -1137,6 +1174,8 @@ document.getElementById("act-add").addEventListener("click",function(){
 
 /* ================= Adjuster modal ================= */
 var adjFood=null,adjServ=1;
+var editEntryId=null,editDayKey=null;
+function resetEditState(){editEntryId=null;editDayKey=null;var b=document.getElementById("adj-add");if(b)b.textContent="Add to day";}
 function updAdjPreview(){
  if(!adjFood)return;
  document.getElementById("adj-val").textContent=fmtServ(adjServ);
@@ -1148,6 +1187,7 @@ function updAdjPreview(){
  document.getElementById("adj-preview").innerHTML="<strong>"+fmtServ(adjServ)+" servings</strong>"+(adjFood.grams?" · <strong>"+Math.round(adjServ*adjFood.grams)+" g</strong>":"")+" → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
 }
 function openAdjust(food,meal){
+ resetEditState();
  adjFood=food;adjServ=1;
  document.getElementById("adj-title").textContent=food.name;
  document.getElementById("adj-nut").textContent=food.serving+(food.grams?" ("+food.grams+" g)":"")+" · "+fmt(food.kcal)+" kcal · P "+r1(food.p)+" · C "+r1(food.c)+" · F "+r1(food.f)+(food.src==="ai"?" · AI estimate":"");
@@ -1165,6 +1205,30 @@ function openAdjust(food,meal){
  }
  var si=document.getElementById("adj-serv-input");if(si)si.value="1";
  updAdjPreview();
+ document.getElementById("adjust-modal").classList.add("open");
+}
+function openAdjustForEdit(entry,dayKeyStr){
+ var eg=entryGrams(entry);
+ var food={id:entry.foodId||"edit",name:entry.name,store:entry.store,serving:entry.serving,kcal:entry.kcal,p:entry.p,c:entry.c,f:entry.f,fiber:entry.fiber||0,grams:eg.sg,src:"custom"};
+ adjFood=food;adjServ=entry.servings||1;
+ editEntryId=entry.id;editDayKey=dayKeyStr;
+ document.getElementById("adj-title").textContent="Edit — "+food.name;
+ document.getElementById("adj-nut").textContent=food.serving+(food.grams?" ("+food.grams+" g)":"")+" · "+fmt(food.kcal)+" kcal · P "+r1(food.p)+" · C "+r1(food.c)+" · F "+r1(food.f);
+ document.getElementById("adj-grams-row").style.display=food.grams?"block":"none";
+ document.getElementById("adj-grams-hint").textContent=food.grams?("1 serving = "+food.grams+" g — type any gram amount and servings adjust to match."):"";
+ document.getElementById("adj-meal").value=entry.meal||currentMeal();
+ var gc=document.getElementById("adj-gram-chips");
+ if(gc){
+   gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
+   gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
+     var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
+     adjServ=g/adjFood.grams;document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+   });});
+ }
+ var si2=document.getElementById("adj-serv-input");if(si2)si2.value=fmtServ(adjServ);
+ var addBtn=document.getElementById("adj-add");if(addBtn)addBtn.textContent="Save changes";
+ updAdjPreview();
+ if(food.grams&&eg.g!=null){document.getElementById("adj-grams").value=eg.g;}
  document.getElementById("adjust-modal").classList.add("open");
 }
 function adjGramsChanged(){
@@ -1204,11 +1268,32 @@ function updAdjPreviewFromGrams(g){
 }
 document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,Math.round((adjServ-0.5)*1000)/1000);updAdjPreview();});
 document.getElementById("adj-plus").addEventListener("click",function(){adjServ=Math.round((adjServ+0.5)*1000)/1000;updAdjPreview();});
-document.getElementById("adj-cancel").addEventListener("click",function(){document.getElementById("adjust-modal").classList.remove("open");});
+document.getElementById("adj-cancel").addEventListener("click",function(){document.getElementById("adjust-modal").classList.remove("open");resetEditState();});
 document.getElementById("adj-add").addEventListener("click",function(){
  if(!adjFood)return;
  if(adjFood.grams){var g=parseFloat(document.getElementById("adj-grams").value);if(g>0)adjServ=g/adjFood.grams;}
  var meal=document.getElementById("adj-meal").value;
+ if(editEntryId&&editDayKey){
+   var ed=day(editDayKey);var ent=null;for(var i=0;i<ed.entries.length;i++){if(ed.entries[i].id===editEntryId)ent=ed.entries[i];}
+   if(ent){
+     ent.servings=Math.round(adjServ*1000)/1000;
+     ent.meal=meal;
+     var sgE=entryGrams(ent).sg||adjFood.grams||null;
+     if(sgE){ent.servingGrams=sgE;ent.grams=Math.round(ent.servings*sgE);}
+     save();
+     var ename=ent.name;var savedDayKey=editDayKey;
+     document.getElementById("adjust-modal").classList.remove("open");resetEditState();
+     toast("Updated "+ename+" — "+fmtServ(ent.servings)+" servings in "+(mealNames[meal]||meal));
+     if(document.getElementById("view-log").classList.contains("active")){
+       renderLog();
+       var lc=document.querySelector('[data-logday="'+savedDayKey+'"]');if(lc)lc.classList.add("open");
+       var lh=document.querySelector('[data-logtoggle="'+savedDayKey+'"]');if(lh)lh.setAttribute("aria-expanded","true");
+     }
+     else if(document.getElementById("view-today").classList.contains("active"))renderToday();
+     return;
+   }
+   resetEditState();
+ }
  logFood(adjFood,meal,adjServ,dayKey(new Date()));
  document.getElementById("adjust-modal").classList.remove("open");toast("Added "+adjFood.name+" to "+mealNames[meal]);
  if(document.getElementById("view-today").classList.contains("active"))renderToday();
@@ -1531,7 +1616,7 @@ function renderLog(){
      var rows=es.map(function(e){
        var eg=entryGrams(e);
        var amt=eg.g!=null?eg.g+" g":fmtServ(e.servings)+" × "+esc(e.serving);
-       return '<div class="log-entry"><span class="grow" style="min-width:0"><strong>'+esc(e.name)+'</strong><br><span class="muted small-txt">'+amt+' · '+esc(e.serving)+'</span></span><span style="text-align:right;flex:none"><strong>'+fmt(e.kcal*e.servings)+' kcal</strong><br><span class="muted small-txt">P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</span></span></div>';
+       return '<div class="log-entry"><span class="grow" style="min-width:0"><strong>'+esc(e.name)+'</strong><br><span class="muted small-txt">'+amt+' · '+esc(e.serving)+'</span></span><span style="text-align:right;flex:none"><strong>'+fmt(e.kcal*e.servings)+' kcal</strong><br><span class="muted small-txt">P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</span></span><span class="log-entry-btns"><button class="icon-btn" data-logedit="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-logdel="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Remove '+esc(e.name)+'">✕</button></span></div>';
      }).join("");
      return '<div class="log-meal-title"><span>'+m[1]+'</span><span class="muted">'+fmt(sub)+' kcal</span></div>'+rows;
    }).join("");
@@ -1562,6 +1647,26 @@ function renderLog(){
    b.addEventListener("click",function(ev){
      ev.stopPropagation();
      var k=b.getAttribute("data-loggo");viewDate=parseDayKey(k);viewDate.setHours(0,0,0,0);go("today");
+   });
+ });
+ el.querySelectorAll("[data-logdel]").forEach(function(b){
+   b.addEventListener("click",function(ev){
+     ev.stopPropagation();
+     /* Keep the day card open after re-render so the user stays in context */
+     var dk=b.getAttribute("data-logday");
+     deleteEntryWithUndo(dk,b.getAttribute("data-logdel"),function(){
+       renderLog();
+       var card=el.querySelector('[data-logday="'+dk+'"]');if(card)card.classList.add("open");
+       var head=el.querySelector('[data-logtoggle="'+dk+'"]');if(head)head.setAttribute("aria-expanded","true");
+     });
+   });
+ });
+ el.querySelectorAll("[data-logedit]").forEach(function(b){
+   b.addEventListener("click",function(ev){
+     ev.stopPropagation();
+     var dk=b.getAttribute("data-logday");var dd=day(dk);
+     var e=dd.entries.filter(function(x){return x.id===b.getAttribute("data-logedit");})[0];
+     if(e)openAdjustForEdit(e,dk);
    });
  });
 }
