@@ -282,9 +282,10 @@ svg text{fill:var(--muted)}
       <div id="ai-area"></div>
     </div>
 
-    <div class="row" style="margin-bottom:12px">
+    <div class="row" style="margin-bottom:8px">
       <button class="primary grow" id="open-custom">＋ Custom food / scan a label</button>
     </div>
+    <p class="muted small-txt" style="margin:0 2px 12px">Two different removes: to take a food off <strong>today</strong>, go to Today and step its servings down to 0. To remove a food from <strong>your Foods index</strong> for good, tap <strong>Remove</strong> on its card below — past days you've already logged stay as they are.</p>
 
     <div id="food-results"></div>
     <div id="off-results"></div>
@@ -522,6 +523,19 @@ svg text{fill:var(--muted)}
       <button class="grow primary" id="cf-save">Save food</button>
     </div>
     <p class="muted small-txt">Saved foods join your Foods index and show in Recent after you log them. The label photo itself isn't kept — only the numbers you save.</p>
+  </div>
+</div>
+
+<!-- Remove food confirm modal -->
+<div class="modal" id="remove-modal" role="dialog" aria-modal="true" aria-labelledby="remove-title">
+  <div class="sheet">
+    <h2 id="remove-title" style="margin-top:0">Remove food?</h2>
+    <p id="remove-msg" style="margin:8px 0"></p>
+    <p class="muted small-txt">Past log entries are snapshots, so days you've already logged keep their name, serving and calories — they won't be deleted or changed.</p>
+    <div class="row" style="margin-top:16px">
+      <button class="grow" id="remove-cancel">Cancel</button>
+      <button class="grow" id="remove-confirm" style="background:var(--red);border-color:var(--red);color:#fff">Remove</button>
+    </div>
   </div>
 </div>
 
@@ -965,10 +979,38 @@ function filterFoods(){
  document.getElementById("food-results").innerHTML=(list.length?list.slice(0,60).map(foodCard).join(""):'<div class="card"><p class="muted" style="margin:0">No match in your local index'+(q?' — checking Open Food Facts &amp; USDA below…':".")+'</p></div>');
  bindFoodCards(document.getElementById("food-results"));
 }
+function isUserFood(f){
+ if(!f||!f.id)return false;
+ if(f.src==="catalog")return false;
+ if(String(f.id).indexOf("cat")===0)return false;
+ for(var i=0;i<(state.customFoods||[]).length;i++){if(state.customFoods[i].id===f.id)return true;}
+ if(f.src==="custom"||String(f.id).indexOf("cf")===0||String(f.id).indexOf("ai")===0)return true;
+ return false;
+}
+var pendingRemoveId=null,pendingRemoveName="";
+function openRemoveConfirm(f){
+ if(!f)return;
+ pendingRemoveId=f.id;pendingRemoveName=f.name||"";
+ var msg=document.getElementById("remove-msg");
+ if(msg)msg.textContent="Remove "+(f.name||"this food")+" from your Foods index? This does not delete past log entries.";
+ var m=document.getElementById("remove-modal");if(m)m.classList.add("open");
+}
+function closeRemoveConfirm(){
+ pendingRemoveId=null;pendingRemoveName="";
+ var m=document.getElementById("remove-modal");if(m)m.classList.remove("open");
+}
+function removeCustomFood(id){
+ if(!id)return;
+ var before=(state.customFoods||[]).length;
+ state.customFoods=(state.customFoods||[]).filter(function(x){return x.id!==id;});
+ if(state.customFoods.length===before)return;
+ save();
+}
 function foodCard(f){
  var st=STORES[f.store]||STORES.custom;
  var srcBadge=f.src==="catalog"?' <span class="badge catalog">Catalog</span>':(f.src==="usda"&&f.store!=="usda"?' <span class="badge usda">USDA</span>':(f.src==="off"&&f.store!=="off"?' <span class="badge off">Open Food Facts</span>':""));
- return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge '+st.cls+'">'+esc(st.name)+'</span>'+srcBadge+(f.src==="ai"?' <span class="badge ai">AI estimate</span>':"")+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(CATS[f.cat]||"")+' · '+esc(f.serving)+(f.grams&&!/\dg/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div><div class="row"><button class="primary grow" data-log="'+f.id+'">Log to '+mealNames[document.getElementById("log-meal").value]+'</button><button data-adj="'+f.id+'">Servings…</button></div></div>';
+ var removeHtml=isUserFood(f)?'<div class="row" style="margin-top:8px;justify-content:flex-end"><button class="small" data-remove="'+esc(f.id)+'" aria-label="Remove '+esc(f.name)+' from your Foods index" style="color:var(--red)">✕ Remove</button></div>':"";
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge '+st.cls+'">'+esc(st.name)+'</span>'+srcBadge+(f.src==="ai"?' <span class="badge ai">AI estimate</span>':"")+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(CATS[f.cat]||"")+' · '+esc(f.serving)+(f.grams&&!/\dg/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div><div class="row"><button class="primary grow" data-log="'+f.id+'">Log to '+mealNames[document.getElementById("log-meal").value]+'</button><button data-adj="'+f.id+'">Servings…</button></div>'+removeHtml+'</div>';
 }
 function bindFoodCards(scope){
  scope.querySelectorAll("[data-log]").forEach(function(b){b.addEventListener("click",function(){
@@ -977,6 +1019,9 @@ function bindFoodCards(scope){
  });});
  scope.querySelectorAll("[data-adj]").forEach(function(b){b.addEventListener("click",function(){
    var f=findFood(b.getAttribute("data-adj"));if(f)openAdjust(f,document.getElementById("log-meal").value);
+ });});
+ scope.querySelectorAll("[data-remove]").forEach(function(b){b.addEventListener("click",function(){
+   var f=findFood(b.getAttribute("data-remove"));if(f)openRemoveConfirm(f);
  });});
 }
 /* Open Food Facts */
@@ -1394,6 +1439,18 @@ document.getElementById("clear-data").addEventListener("click",function(){
  if(this.getAttribute("data-arm")){localStorage.removeItem(KEY);state=loadState();this.removeAttribute("data-arm");this.textContent="Erase everything";renderSettings();toast("Everything erased.");}
  else{this.setAttribute("data-arm","1");this.textContent="Tap again to confirm erase";}
 });
+
+/* Remove custom food — confirm modal wiring (in-page, no window.confirm) */
+var _rmCancel=document.getElementById("remove-cancel");if(_rmCancel)_rmCancel.addEventListener("click",closeRemoveConfirm);
+var _rmConfirm=document.getElementById("remove-confirm");if(_rmConfirm)_rmConfirm.addEventListener("click",function(){
+ var id=pendingRemoveId,name=pendingRemoveName;
+ if(!id){closeRemoveConfirm();return;}
+ removeCustomFood(id);
+ closeRemoveConfirm();
+ toast("Removed "+name+" from your Foods index.");
+ filterFoods();
+});
+var _rmModal=document.getElementById("remove-modal");if(_rmModal)_rmModal.addEventListener("click",function(ev){if(ev.target===_rmModal)closeRemoveConfirm();});
 
 /* init */
 document.getElementById("log-meal").value=currentMeal();
