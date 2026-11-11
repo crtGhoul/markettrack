@@ -296,6 +296,17 @@ textarea{resize:vertical}
 .health-steps-line{font-size:.95rem;margin:8px 0 0}
 .steps-row{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
 .steps-row:first-of-type{border-top:none}
+/* Foods tab: collapsible sections + top add-food actions */
+.sec-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:none;border-radius:8px;padding:2px 0;text-align:left;font-weight:800;font-size:1rem;color:var(--ink);min-height:44px}
+.sec-toggle .sec-title{min-width:0}
+.sec-toggle .sec-chev{flex:none;font-size:.85rem;color:var(--muted);transition:transform .2s}
+.sec-toggle.closed .sec-chev{transform:rotate(-90deg)}
+.sec-toggle.plain{padding:2px}
+#results-wrap{margin-bottom:12px}
+.search-actions{margin-top:10px}
+.search-actions button{font-weight:700}
+#view-foods.searching [data-sec-body="index"]{display:block!important}
+#view-foods.searching [data-sec-btn="index"] .sec-chev{transform:none}
 </style>
 </head>
 <body>
@@ -498,6 +509,11 @@ textarea{resize:vertical}
     <div class="card">
       <label for="food-search">Search foods</label>
       <input id="food-search" type="search" placeholder="Try “chicken”, “yogurt”, “tortillas”…" autocomplete="off" aria-label="Search foods">
+      <div class="row search-actions">
+        <button type="button" class="grow" id="go-barcode" aria-label="Go to the barcode lookup">📷 Barcode</button>
+        <button type="button" class="grow" id="go-labelscan" aria-label="Scan a nutrition facts label">🏷️ Label scan</button>
+      </div>
+      <p class="muted small-txt" style="margin:8px 0 0">Three ways to add a food: search above, look up a package barcode, or photograph a nutrition facts label.</p>
       <div class="row wrap" style="margin-top:10px" id="store-chips"></div>
       <div class="row wrap" style="margin-top:8px">
         <div class="grow" style="min-width:150px"><label for="cat-filter">Category</label>
@@ -517,13 +533,25 @@ textarea{resize:vertical}
       </div>
     </div>
 
+    <div id="results-wrap">
+      <button type="button" class="sec-toggle plain" data-sec-btn="index" aria-expanded="true"><span class="sec-title">🛒 Food index &amp; results <span class="muted small-txt" id="results-note"></span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="index">
+        <div id="food-results"></div>
+        <div id="off-results"></div>
+        <div id="usda-results"></div>
+      </div>
+    </div>
+
     <div class="card">
-      <h3>📍 Nearby stores <span class="muted small-txt">— tap one to filter, tap again to clear</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="nearby" aria-expanded="true"><span class="sec-title">📍 Nearby stores <span class="muted small-txt">— tap one to filter, tap again to clear</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="nearby">
       <div class="store-strip" id="nearby-strip"></div>
+      </div>
     </div>
 
     <div class="card" id="restaurants-card">
-      <h2>🍔 Restaurants near Katy</h2>
+      <button type="button" class="sec-toggle" data-sec-btn="restaurants" aria-expanded="true"><span class="sec-title">🍔 Restaurants near Katy</span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="restaurants">
       <p class="muted small-txt" style="margin:0 0 10px">The most-ordered items at 22 chains around Katy — 256 items, with calories and macros from each chain's own published nutrition (researched Nov 2026). They log to a meal exactly like foods, using the “Log to meal” choice above; where a serving weight is published you can also log by grams. Pizza is per slice of a 14″ large unless the slice says otherwise.</p>
       <details>
         <summary style="font-weight:700;cursor:pointer;min-height:44px;display:flex;align-items:center">Good to know before you log</summary>
@@ -539,46 +567,60 @@ textarea{resize:vertical}
       <input id="rst-search" type="search" placeholder="Try “Big Mac”, “burrito bowl”, “Blizzard”…" autocomplete="off" aria-label="Search restaurants and items">
       <div class="row wrap" style="margin-top:10px" id="rst-chips"></div>
       <div id="rst-results"></div>
+      </div>
     </div>
 
     <div class="card" id="basket-card">
-      <h2>🧺 Shopping basket <span class="muted small-txt" id="basket-count"></span></h2>
-      <p class="muted small-txt" style="margin:0 0 10px">Build a shopping list from any store's foods — tap <strong>🧺 Basket</strong> on a food below. The basket totals up the calories and macros, and for each item it checks the other stores for a lower-calorie version of the same product. It stays saved in this browser until you clear it.</p>
+      <button type="button" class="sec-toggle" data-sec-btn="basket" aria-expanded="true"><span class="sec-title">🧺 Shopping basket <span class="muted small-txt" id="basket-count"></span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="basket">
+      <p class="muted small-txt" style="margin:0 0 10px">Build a shopping list from any store's foods — tap <strong>🧺 Basket</strong> on a food card in the index. The basket totals up the calories and macros, and for each item it checks the other stores for a lower-calorie version of the same product. It stays saved in this browser until you clear it.</p>
       <div id="basket-body"></div>
+      </div>
     </div>
 
-    <div class="card">
-      <h3>Barcode lookup</h3>
+    <div class="card" id="barcode-card">
+      <button type="button" class="sec-toggle" data-sec-btn="barcode" aria-expanded="true"><span class="sec-title">Barcode lookup</span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="barcode">
       <div class="row">
         <input id="barcode-input" inputmode="numeric" placeholder="Type the barcode digits" aria-label="Barcode digits">
         <button class="primary" id="barcode-btn">Look up</button>
       </div>
       <div id="barcode-result" style="margin-top:8px"></div>
       <p class="muted small-txt" style="margin:8px 0 0">Every barcode you look up is saved on this device — look the same one up again later and it shows from your cache, no internet needed.</p>
+      </div>
     </div>
 
     <div class="card">
-      <h3>✨ AI fill-in <span class="muted small-txt">— describe a food, get an estimate</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="ai" aria-expanded="true"><span class="sec-title">✨ AI fill-in <span class="muted small-txt">— describe a food, get an estimate</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="ai">
       <div id="ai-area"></div>
+      </div>
     </div>
 
     <div class="card">
-      <h3>🗣️ Describe a meal <span class="muted small-txt">— type it or say it, review, then log</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="describe" aria-expanded="true"><span class="sec-title">🗣️ Describe a meal <span class="muted small-txt">— type it or say it, review, then log</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="describe">
       <div id="describe-area"></div>
+      </div>
     </div>
 
     <div class="card">
-      <h3>📸 Whole-plate photo <span class="muted small-txt">— snap the plate, review the estimate, then log</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="plate" aria-expanded="true"><span class="sec-title">📸 Whole-plate photo <span class="muted small-txt">— snap the plate, review the estimate, then log</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="plate">
       <div id="plate-area"></div>
+      </div>
     </div>
 
     <div class="card" id="menu-card">
-      <h3>🍽️ Restaurant menu scan <span class="muted small-txt">— photograph a menu, pick a dish, log it</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="menu" aria-expanded="true"><span class="sec-title">🍽️ Restaurant menu scan <span class="muted small-txt">— photograph a menu, pick a dish, log it</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="menu">
       <div id="menu-area"></div>
+      </div>
     </div>
 
     <div class="card" id="recipe-card">
-      <h3>🍳 Import a recipe <span class="muted small-txt">— from a link or pasted text</span></h3>
+      <button type="button" class="sec-toggle" data-sec-btn="recipe" aria-expanded="true"><span class="sec-title">🍳 Import a recipe <span class="muted small-txt">— from a link or pasted text</span></span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="recipe">
       <p class="muted small-txt" style="margin:0 0 10px">Paste a recipe link, or paste the recipe text itself. MarketTrack reads the title, servings and ingredients, turns each ingredient into a component (matched to your index when possible), and builds a food you can save and log — one serving at a time.</p>
       <label for="recipe-url">Recipe link (URL)</label>
       <div class="row">
@@ -591,26 +633,27 @@ textarea{resize:vertical}
       <textarea id="recipe-text" rows="6" placeholder="Chicken Rice Bowls&#10;Serves 4&#10;Ingredients:&#10;2 cups rice&#10;500 g chicken breast&#10;2 tbsp olive oil"></textarea>
       <button class="primary" id="recipe-parse" type="button" style="width:100%;margin-top:8px">Read pasted recipe</button>
       <div id="recipe-result" style="margin-top:10px"></div>
+      </div>
     </div>
 
     <div class="row" style="margin-bottom:8px">
       <button class="primary grow" id="open-custom">＋ Custom food / scan a label</button>
     </div>
-    <p class="muted small-txt" style="margin:0 2px 12px">Two different removes: to take a food off <strong>today</strong>, go to Today and step its servings down to 0. To remove a food from <strong>your Foods index</strong> for good, tap <strong>Remove</strong> on its card below — past days you've already logged stay as they are.</p>
+    <p class="muted small-txt" style="margin:0 2px 12px">Two different removes: to take a food off <strong>today</strong>, go to Today and step its servings down to 0. To remove a food from <strong>your Foods index</strong> for good, tap <strong>Remove</strong> on its card in the index above — past days you've already logged stay as they are.</p>
 
     <div class="card">
-      <h2>🍱 Saved meals</h2>
-      <p class="muted small-txt" style="margin:0 0 10px">Your saved meals — tap Log to add the whole meal at once, then keep adding more foods below without leaving this list.</p>
+      <button type="button" class="sec-toggle" data-sec-btn="saved" aria-expanded="true"><span class="sec-title">🍱 Saved meals</span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="saved">
+      <p class="muted small-txt" style="margin:0 0 10px">Your saved meals — tap Log to add the whole meal at once, then keep adding more foods without leaving this list.</p>
       <div id="saved-meals-foods"></div>
+      </div>
     </div>
 
-    <div id="food-results"></div>
-    <div id="off-results"></div>
-    <div id="usda-results"></div>
-
     <div class="card">
-      <h2>🕘 Recent</h2>
+      <button type="button" class="sec-toggle" data-sec-btn="recent" aria-expanded="true"><span class="sec-title">🕘 Recent</span><span class="sec-chev" aria-hidden="true">▾</span></button>
+      <div class="sec-body" data-sec-body="recent">
       <div id="recent-foods"></div>
+      </div>
     </div>
   </section>
 
@@ -2323,8 +2366,10 @@ function filterFoods(){
  var q=document.getElementById("food-search").value.trim().toLowerCase(),cat=document.getElementById("cat-filter").value;
  var list=allFoods().filter(function(f){
    return (!storeFilter||f.store===storeFilter)&&(!cat||f.cat===cat)&&(!q||f.name.toLowerCase().indexOf(q)>=0);});
- document.getElementById("food-results").innerHTML=(list.length?list.slice(0,60).map(foodCard).join(""):'<div class="card"><p class="muted" style="margin:0">No match in your local index'+(q?' — checking Open Food Facts &amp; USDA below…':".")+'</p></div>');
+ document.getElementById("food-results").innerHTML=(list.length?list.slice(0,60).map(foodCard).join(""):'<div class="card"><p class="muted" style="margin:0">No match in your local index'+(q?' — checking Open Food Facts &amp; USDA…':".")+'</p></div>');
  bindFoodCards(document.getElementById("food-results"));
+ var vw=document.getElementById("view-foods");if(vw)vw.classList.toggle("searching",!!(q||cat||storeFilter));
+ var rn=document.getElementById("results-note");if(rn)rn.textContent=q?("· matches for “"+document.getElementById("food-search").value.trim()+"”"):("· "+list.length+" foods");
 }
 function isUserFood(f){
  if(!f||!f.id)return false;
@@ -3030,6 +3075,44 @@ function renderWorkoutReview(act){
 
 /* Custom food */
 document.getElementById("open-custom").addEventListener("click",function(){renderScanArea();document.getElementById("custom-modal").classList.add("open");});
+
+/* ================= Foods tab: collapsible sections =================
+   Each [data-sec-btn] header toggles its [data-sec-body]. The collapsed
+   state is remembered in its own localStorage key — separate from the
+   main app state, so no existing saved data changes. While a search or
+   filter is active, the results block at the top of the tab is forced
+   visible (see the .searching CSS) without touching the saved state;
+   clearing the search restores the layout exactly as it was left. */
+var SEC_KEY="markettrack-sections";
+var SEC_DEFAULTS={index:false,nearby:true,restaurants:true,basket:false,barcode:false,ai:true,describe:true,plate:true,menu:true,recipe:true,saved:false,recent:false};
+function loadSecState(){try{var s=JSON.parse(localStorage.getItem(SEC_KEY));return (s&&typeof s==="object")?s:{};}catch(e){return{};}}
+function secCollapsed(key){var s=loadSecState();if(Object.prototype.hasOwnProperty.call(s,key))return !!s[key];return !!SEC_DEFAULTS[key];}
+function applySection(key){
+ var collapsed=secCollapsed(key);
+ document.querySelectorAll('[data-sec-body="'+key+'"]').forEach(function(b){b.style.display=collapsed?"none":"";});
+ document.querySelectorAll('[data-sec-btn="'+key+'"]').forEach(function(b){b.setAttribute("aria-expanded",collapsed?"false":"true");b.classList.toggle("closed",collapsed);});
+}
+function setSection(key,collapsed){
+ var s=loadSecState();s[key]=!!collapsed;try{localStorage.setItem(SEC_KEY,JSON.stringify(s));}catch(e){}
+ applySection(key);
+}
+(function initSections(){
+ var keys={};Object.keys(SEC_DEFAULTS).forEach(function(k){keys[k]=1;});
+ document.querySelectorAll("[data-sec-btn]").forEach(function(b){keys[b.getAttribute("data-sec-btn")]=1;});
+ Object.keys(keys).forEach(applySection);
+ document.querySelectorAll("[data-sec-btn]").forEach(function(b){
+  b.addEventListener("click",function(){var k=b.getAttribute("data-sec-btn");setSection(k,!secCollapsed(k));});
+ });
+})();
+/* Top add-food actions: jump to the barcode lookup / open the label scan */
+document.getElementById("go-barcode").addEventListener("click",function(){
+ setSection("barcode",false);
+ var card=document.getElementById("barcode-card");
+ if(card)card.scrollIntoView({behavior:(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)?"auto":"smooth",block:"start"});
+ var inp=document.getElementById("barcode-input");
+ if(inp)setTimeout(function(){try{inp.focus({preventScroll:true});}catch(e){inp.focus();}},400);
+});
+document.getElementById("go-labelscan").addEventListener("click",function(){renderScanArea();document.getElementById("custom-modal").classList.add("open");});
 document.getElementById("cf-cancel").addEventListener("click",function(){document.getElementById("custom-modal").classList.remove("open");});
 document.getElementById("cf-save").addEventListener("click",function(){
  var name=document.getElementById("cf-name").value.trim(),kcal=parseFloat(document.getElementById("cf-kcal").value);
