@@ -634,7 +634,7 @@ svg text{fill:var(--muted)}
 <div id="toast" role="status"></div>
 
 <nav class="bottom" aria-label="Main">
-  <button data-go="today" class="on"><span class="ic">🏠</span>Today</button>
+  <button data-go="today" class="on" id="nav-today-btn"><span class="ic">🏠</span>Today</button>
   <button data-go="foods"><span class="ic">🛒</span>Foods</button>
   <button data-go="log"><span class="ic">📖</span>Log</button>
   <button data-go="progress"><span class="ic">📈</span>Progress</button>
@@ -895,9 +895,10 @@ function allFoods(){return state.customFoods.concat(CATALOG);}
 function findFood(id){var f=allFoods().filter(function(x){return x.id===id;});return f[0]||null;}
 function totals(k){var d=day(k),t={kcal:0,p:0,c:0,f:0,fiber:0,burned:0};d.entries.forEach(function(e){t.kcal+=e.kcal*e.servings;t.p+=e.p*e.servings;t.c+=e.c*e.servings;t.f+=e.f*e.servings;t.fiber+=e.fiber*e.servings;});d.activity.forEach(function(a){t.burned+=a.kcal;});return t;}
 function fmtServ(n){return String(Math.round(n*100)/100);}
+function roundServ(n){return Math.round(n*100)/100;}
 function logFood(food,meal,servings,k){
  var d=day(k||dayKey(viewDate));
- var sv=Math.round(servings*1000)/1000,sg=food.grams||null;
+ var sv=roundServ(servings),sg=food.grams||null;
  d.entries.push({id:"e"+Date.now()+Math.random().toString(36).slice(2,7),foodId:food.id,name:food.name,store:food.store,serving:food.serving,kcal:food.kcal,p:food.p,c:food.c,f:food.f,fiber:food.fiber||0,meal:meal,servings:sv,servingGrams:sg,grams:sg?Math.round(sv*sg):null,ts:Date.now()});
  save();
 }
@@ -981,7 +982,7 @@ function logSavedMeal(id){
  var sm=(state.savedMeals||[]).filter(function(x){return x.id===id;})[0];
  if(!sm||!(sm.entries||[]).length){toast("That saved meal is empty.");return;}
  var targetMeal=sm.mealType||currentMeal();
- var targetK=dayKey(new Date());
+ var targetK=dayKey(viewDate);
  sm.entries.forEach(function(e){
    var eg={sg:e.servingGrams!=null?e.servingGrams:null,g:e.grams!=null?e.grams:null};
    var food={id:e.foodId||"saved",name:e.name,store:e.store,serving:e.serving,kcal:e.kcal,p:e.p,c:e.c,f:e.f,fiber:e.fiber||0,grams:eg.sg};
@@ -1029,12 +1030,12 @@ function doQuickAdd(){
  var name=document.getElementById("qa-name").value.trim()||"Quick Add";
  var meal=document.getElementById("qa-meal").value||currentMeal();
  var food={id:"quick"+Date.now(),name:name,store:"custom",cat:"prepared",serving:"Quick add",kcal:Math.round(kcal),p:r1(parseFloat(document.getElementById("qa-p").value)||0),c:r1(parseFloat(document.getElementById("qa-c").value)||0),f:r1(parseFloat(document.getElementById("qa-f").value)||0),fiber:0,grams:null,src:"custom"};
- logFood(food,meal,1,dayKey(new Date()));
+ logFood(food,meal,1,dayKey(viewDate));
  document.getElementById("qa-name").value="";document.getElementById("qa-kcal").value="";document.getElementById("qa-p").value="";document.getElementById("qa-c").value="";document.getElementById("qa-f").value="";
  if(msg)msg.innerHTML='<span class="ok-msg">Added “'+esc(name)+'” · '+fmt(kcal)+' kcal to '+(mealNames[meal]||meal)+'.</span>';
  toast("Added "+name+" to "+(mealNames[meal]||meal));
- /* If the viewed day is today, refresh Today so the entry is visible right away */
- if(dayKey(viewDate)===dayKey(new Date()))renderToday();
+ /* Refresh Today so the entry, ring, and meal totals update for the day being viewed */
+ renderToday();
 }
 function flashAddedButton(btn){
  if(!btn)return;var orig=btn.textContent;btn.textContent="Added ✓";btn.disabled=true;
@@ -1052,6 +1053,9 @@ function go(view){
  updateSavedIndicators();
 }
 document.querySelectorAll("[data-go]").forEach(function(b){b.addEventListener("click",function(){go(b.getAttribute("data-go"));});});
+/* Bottom-nav Today always returns to the real today, even when a past day is being viewed (the Log tab day-jump and Settings Done buttons call go() directly and are unaffected) */
+var _navTodayBtn=document.getElementById("nav-today-btn");
+if(_navTodayBtn)_navTodayBtn.addEventListener("click",function(){viewDate=new Date();viewDate.setHours(0,0,0,0);renderToday();});
 
 /* ================= Today ================= */
 var mealNames={breakfast:"Breakfast",lunch:"Lunch",dinner:"Dinner",snack:"Snack"};
@@ -1087,7 +1091,7 @@ function renderToday(){
  document.querySelectorAll("[data-savemeal]").forEach(function(b){b.addEventListener("click",function(){openSaveMeal(b.getAttribute("data-savemeal"));});});
  document.querySelectorAll("[data-step]").forEach(function(b){b.addEventListener("click",function(){
    var e=d.entries.filter(function(x){return x.id===b.getAttribute("data-eid");})[0];if(!e)return;
-   e.servings=Math.round((e.servings+parseFloat(b.getAttribute("data-step")))*1000)/1000;
+   e.servings=roundServ(e.servings+parseFloat(b.getAttribute("data-step")));
    if(e.servings<=0){d.entries=d.entries.filter(function(x){return x.id!==e.id;});toast("Removed "+e.name);}
    else{var sg2=entryGrams(e).sg;if(sg2){e.servingGrams=sg2;e.grams=Math.round(e.servings*sg2);}}
    save();renderToday();
@@ -1145,7 +1149,7 @@ function renderRecent(el){
  }).join("");
  el.querySelectorAll("[data-recplus]").forEach(function(b){b.addEventListener("click",function(){
    var e=rec[parseInt(b.getAttribute("data-recplus"),10)];
-   logFood({id:e.foodId||"recent",name:e.name,store:e.store,serving:e.serving,kcal:e.kcal,p:e.p,c:e.c,f:e.f,fiber:e.fiber,grams:entryGrams(e).sg},currentMeal(),1,dayKey(new Date()));
+   logFood({id:e.foodId||"recent",name:e.name,store:e.store,serving:e.serving,kcal:e.kcal,p:e.p,c:e.c,f:e.f,fiber:e.fiber,grams:entryGrams(e).sg},currentMeal(),1,dayKey(viewDate));
    toast("Added "+e.name+" to "+mealNames[currentMeal()]);if(document.getElementById("view-today").classList.contains("active"))renderToday();else renderRecent(el);
  });});
  el.querySelectorAll("[data-rec]").forEach(function(b){b.addEventListener("click",function(){
@@ -1199,7 +1203,7 @@ function openAdjust(food,meal){
    gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
-     adjServ=g/adjFood.grams;document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+     adjServ=roundServ(g/adjFood.grams);document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
      document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
    });});
  }
@@ -1222,7 +1226,7 @@ function openAdjustForEdit(entry,dayKeyStr){
    gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
-     adjServ=g/adjFood.grams;document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+     adjServ=roundServ(g/adjFood.grams);document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
    });});
  }
  var si2=document.getElementById("adj-serv-input");if(si2)si2.value=fmtServ(adjServ);
@@ -1235,7 +1239,7 @@ function adjGramsChanged(){
  if(!adjFood||!adjFood.grams)return;
  var g=parseFloat(document.getElementById("adj-grams").value);
  if(!g||g<0){return;}
- adjServ=g/adjFood.grams;
+ adjServ=roundServ(g/adjFood.grams);
  updAdjPreviewFromGrams(g);
 }
 document.getElementById("adj-grams").addEventListener("input",adjGramsChanged);
@@ -1248,7 +1252,7 @@ if(_adjServInput){
  var _onServInput=function(){
    var v=parseFloat(_adjServInput.value);
    if(!v||v<=0)return;
-   adjServ=Math.round(v*1000)/1000;
+   adjServ=roundServ(v);
    /* Update preview without overwriting the field being typed in */
    document.getElementById("adj-val").textContent=fmtServ(adjServ);
    if(adjFood){
@@ -1258,7 +1262,7 @@ if(_adjServInput){
    }
  };
  _adjServInput.addEventListener("input",_onServInput);
- _adjServInput.addEventListener("change",function(){var v=parseFloat(_adjServInput.value);if(v>0){adjServ=Math.round(v*1000)/1000;updAdjPreview();}});
+ _adjServInput.addEventListener("change",function(){var v=parseFloat(_adjServInput.value);if(v>0){adjServ=roundServ(v);updAdjPreview();}});
 }
 function updAdjPreviewFromGrams(g){
  document.getElementById("adj-val").textContent=fmtServ(adjServ);
@@ -1266,17 +1270,17 @@ function updAdjPreviewFromGrams(g){
  document.querySelectorAll("[data-servchip]").forEach(function(ch){ch.classList.toggle("on",Math.abs(parseFloat(ch.getAttribute("data-servchip"))-adjServ)<0.001);});
  document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
 }
-document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,Math.round((adjServ-0.5)*1000)/1000);updAdjPreview();});
-document.getElementById("adj-plus").addEventListener("click",function(){adjServ=Math.round((adjServ+0.5)*1000)/1000;updAdjPreview();});
+document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,roundServ(adjServ-0.5));updAdjPreview();});
+document.getElementById("adj-plus").addEventListener("click",function(){adjServ=roundServ(adjServ+0.5);updAdjPreview();});
 document.getElementById("adj-cancel").addEventListener("click",function(){document.getElementById("adjust-modal").classList.remove("open");resetEditState();});
 document.getElementById("adj-add").addEventListener("click",function(){
  if(!adjFood)return;
- if(adjFood.grams){var g=parseFloat(document.getElementById("adj-grams").value);if(g>0)adjServ=g/adjFood.grams;}
+ if(adjFood.grams){var g=parseFloat(document.getElementById("adj-grams").value);if(g>0)adjServ=roundServ(g/adjFood.grams);}
  var meal=document.getElementById("adj-meal").value;
  if(editEntryId&&editDayKey){
    var ed=day(editDayKey);var ent=null;for(var i=0;i<ed.entries.length;i++){if(ed.entries[i].id===editEntryId)ent=ed.entries[i];}
    if(ent){
-     ent.servings=Math.round(adjServ*1000)/1000;
+     ent.servings=roundServ(adjServ);
      ent.meal=meal;
      var sgE=entryGrams(ent).sg||adjFood.grams||null;
      if(sgE){ent.servingGrams=sgE;ent.grams=Math.round(ent.servings*sgE);}
@@ -1294,7 +1298,7 @@ document.getElementById("adj-add").addEventListener("click",function(){
    }
    resetEditState();
  }
- logFood(adjFood,meal,adjServ,dayKey(new Date()));
+ logFood(adjFood,meal,adjServ,dayKey(viewDate));
  document.getElementById("adjust-modal").classList.remove("open");toast("Added "+adjFood.name+" to "+mealNames[meal]);
  if(document.getElementById("view-today").classList.contains("active"))renderToday();
 });
@@ -1359,7 +1363,7 @@ function foodCard(f){
 function bindFoodCards(scope){
  scope.querySelectorAll("[data-log]").forEach(function(b){b.addEventListener("click",function(){
    var f=findFood(b.getAttribute("data-log"));if(!f)return;var meal=document.getElementById("log-meal").value;
-   logFood(f,meal,1,dayKey(new Date()));toast("Added "+f.name+" to "+mealNames[meal]+" — keep adding, this list stays here.");flashAddedButton(b);
+   logFood(f,meal,1,dayKey(viewDate));toast("Added "+f.name+" to "+mealNames[meal]+" — keep adding, this list stays here.");flashAddedButton(b);
  });});
  scope.querySelectorAll("[data-adj]").forEach(function(b){b.addEventListener("click",function(){
    var f=findFood(b.getAttribute("data-adj"));if(f)openAdjust(f,document.getElementById("log-meal").value);
@@ -1382,7 +1386,7 @@ var offCache={};
 function showOff(list,el){
  list.forEach(function(f){offCache[f.id]=f;});
  el.innerHTML=list.length?'<h3 style="margin:6px 2px 10px">From Open Food Facts</h3>'+list.map(offCard).join(""):"";
- el.querySelectorAll("[data-offlog]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offlog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(new Date()));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
+ el.querySelectorAll("[data-offlog]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offlog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
  el.querySelectorAll("[data-offsave]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offsave")];if(!f)return;
    if(!state.customFoods.some(function(x){return x.name===f.name;})){f.id="cf"+Date.now();state.customFoods.push(f);save();}
    toast("Saved to your Foods index.");filterFoods();});});
@@ -1422,7 +1426,7 @@ function usdaCard(f){
 function showUsda(list,el){
  list.forEach(function(f){usdaCache[f.id]=f;});
  el.innerHTML=list.length?'<h3 style="margin:6px 2px 10px">From USDA FoodData Central</h3>'+list.map(usdaCard).join(""):"";
- el.querySelectorAll("[data-usdalog]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdalog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(new Date()));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
+ el.querySelectorAll("[data-usdalog]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdalog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
  el.querySelectorAll("[data-usdaadj]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdaadj")];if(f)openAdjust(f,document.getElementById("log-meal").value);});});
  el.querySelectorAll("[data-usdasave]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdasave")];if(!f)return;
    if(!state.customFoods.some(function(x){return x.name===f.name;})){var nf=Object.assign({},f);nf.id="cf"+Date.now();state.customFoods.push(nf);save();}
@@ -1538,7 +1542,7 @@ function renderAiArea(){
       var f={id:"ai"+Date.now(),name:d.name||q,store:"custom",cat:"prepared",serving:d.serving||"1 serving",kcal:Math.round(d.kcal||0),p:r1(d.protein||0),c:r1(d.carbs||0),f:r1(d.fat||0),fiber:r1(d.fiber||0),grams:d.servingGrams?Math.round(d.servingGrams):null,src:"ai"};
       offCache[f.id]=f;
       out.innerHTML='<div class="food-card" style="margin:0"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge ai">AI estimate</span></span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(f.serving)+(f.grams?' ('+f.grams+' g)':"")+' · P '+f.p+' · C '+f.c+' · F '+f.f+' · Fiber '+f.fiber+'</div><div class="row"><button class="primary grow" id="ai-log">Log it</button><button id="ai-save">Save to my index</button></div></div>'+(fallbackNote?'<p class="muted small-txt" style="margin:8px 2px 0">'+esc(fallbackNote)+'</p>':"");
-      document.getElementById("ai-log").addEventListener("click",function(){logFood(f,document.getElementById("log-meal").value,1,dayKey(new Date()));toast("Added "+f.name);});
+      document.getElementById("ai-log").addEventListener("click",function(){logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name);});
       document.getElementById("ai-save").addEventListener("click",function(){state.customFoods.push(f);save();toast("Saved to your Foods index.");filterFoods();});
     }).catch(function(e){out.innerHTML='<p class="err">'+esc(geminiErr(e))+'</p>';});
  });
