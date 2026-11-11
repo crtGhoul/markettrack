@@ -840,7 +840,7 @@ textarea{resize:vertical}
       <p class="muted small-txt">Backup key is saved only in this browser, on this device, and is sent only to Google when a Gemini call needs the fallback.</p>
       <hr class="sep">
       <h3 style="margin:0 0 6px">Groq API key <span class="muted small-txt">— free, used only when Groq is the picked provider</span></h3>
-      <p class="small-txt" style="margin-top:0">Groq runs the Llama 4 Scout vision model — it reads label photos and answers fast. Free, no card.</p>
+      <p class="small-txt" style="margin-top:0">Groq runs the Qwen 3.8 27B vision model — it reads label photos and answers fast. Free, no card.</p>
       <ol class="steps">
         <li>Open <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> and sign in.</li>
         <li>Tap <strong>Create API Key</strong> — it's free.</li>
@@ -2828,8 +2828,8 @@ function providerFail(name,detail){
  var e=new Error("PROVIDER_FAIL");e.plain=name+" failed: "+detail;return e;
 }
 /* Gemini-style parts -> OpenAI chat content (text parts + base64 image_url).
-   All instructions stay in the single user message — Groq's Llama 4 vision
-   rejects system prompts, so no system message is ever sent. */
+   All instructions stay in the single user message — Groq vision is called
+   with no separate system message, matching Groq's own examples. */
 function partsToOpenAI(parts){
  var content=[];
  parts.forEach(function(p){
@@ -2844,7 +2844,7 @@ function openAICompatCall(provider,parts){
  var key=((isGroq?state.groqKey:state.openrouterKey)||"").trim();
  var headers={"Content-Type":"application/json","Authorization":"Bearer "+key};
  if(!isGroq){headers["HTTP-Referer"]="https://crtghoul.github.io/markettrack/";headers["X-Title"]="MarketTrack";}
- var body={model:isGroq?"meta-llama/llama-4-scout-17b-16e-instruct":"google/gemma-4-31b-it:free",
+ var body={model:isGroq?"qwen/qwen3.8-27b":"google/gemma-4-31b-it:free",
   messages:[{role:"user",content:partsToOpenAI(parts)}],
   response_format:{type:"json_object"},temperature:0};
  return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
@@ -2854,7 +2854,12 @@ function openAICompatCall(provider,parts){
    if(!res.ok){
      var apiMsg=(res.j.error&&res.j.error.message)||"";
      if(res.status===401||res.status===403)throw providerFail(name,"that key was rejected — check the "+name+" key in Settings and try again."+(apiMsg?" ("+apiMsg+")":""));
-     if(res.status===429)throw providerFail(name,"rate limit reached — wait a bit and try again. Everything else in the app still works.");
+     if(res.status===429){
+       /* Exactly one request per tap — never auto-retry a 429, or a failed
+          tap would burn the user's free daily cap. */
+       if(isGroq)throw providerFail(name,"rate limit reached — wait a bit and try once more. Your key is fine — this is just the free limit. Everything else in the app still works.");
+       throw providerFail(name,"you hit OpenRouter's free limit (50 requests a day on the free tier, 20 per minute) — wait a bit and try once more. Your key is fine — this isn't a key problem. Everything else in the app still works.");
+     }
      if(res.status===404)throw providerFail(name,"the vision model wasn't found — it may have moved. ("+(apiMsg||"HTTP 404")+")");
      throw providerFail(name,(apiMsg||("the request was refused (HTTP "+res.status+")"))+" — try again in a bit.");
    }
