@@ -2850,12 +2850,14 @@ function openAICompatCall(provider,parts){
  if(!isGroq){headers["HTTP-Referer"]="https://crtghoul.github.io/markettrack/";headers["X-Title"]="MarketTrack";}
  var body={model:isGroq?"qwen/qwen3.8-27b":"nvidia/nemotron-3.5-super-vl:free",
   messages:[{role:"user",content:partsToOpenAI(parts)}],
-  response_format:{type:"json_object"},temperature:0};
- /* OpenRouter only: Nemotron reasons by default and its thinking can eat
-    the whole reply, leaving message.content empty. exclude:true hides the
-    reasoning trace so only the final answer comes back in content. Do NOT
-    put a reasoning level value here instead — that form was rejected. */
- if(!isGroq)body.reasoning={exclude:true};
+  temperature:0};
+ /* Groq only: keep forcing JSON mode — Qwen handles it and the user
+    confirmed Groq works. OpenRouter / Nemotron must NOT be sent
+    response_format or a reasoning field: forced JSON mode can make
+    Nemotron return an empty content field for vision input, and hiding
+    reasoning removes the field the answer may arrive in. The prompt
+    already asks for JSON; the reply is parsed out of plain text below. */
+ if(isGroq)body.response_format={type:"json_object"};
  return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
   method:"POST",headers:headers,body:JSON.stringify(body)
  }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
@@ -2872,8 +2874,40 @@ function openAICompatCall(provider,parts){
      if(res.status===404)throw providerFail(name,"the vision model wasn't found — it may have moved. ("+(apiMsg||"HTTP 404")+")");
      throw providerFail(name,(apiMsg||("the request was refused (HTTP "+res.status+")"))+" — try again in a bit.");
    }
-   var txt=res.j.choices&&res.j.choices[0]&&res.j.choices[0].message&&(res.j.choices[0].message.content||"");
-   if(!txt)throw providerFail(name,"the reply came back empty — try again.");
+   var msg=(res.j.choices&&res.j.choices[0]&&res.j.choices[0].message)||null;
+   var txt="";
+   if(msg&&isGroq){
+     txt=msg.content||"";
+   }else if(msg){
+     /* OpenRouter / Nemotron: content is often empty even on a successful
+        call — the answer may arrive in reasoning_content or reasoning
+        instead. Take the first non-empty of content, then
+        reasoning_content, then reasoning. */
+     var candidates=[msg.content,msg.reasoning_content,msg.reasoning];
+     var rawCandidates=[];
+     for(var ci=0;ci<candidates.length;ci++){
+       var cand=candidates[ci];
+       var candTxt="";
+       if(typeof cand==="string")candTxt=cand;
+       else if(Array.isArray(cand))candTxt=cand.map(function(part){return typeof part==="string"?part:((part&&part.text)||(part&&part.content)||"");}).join("");
+       if(candTxt&&candTxt.trim())rawCandidates.push(candTxt);
+     }
+     for(var ri=0;ri<rawCandidates.length&&!txt;ri++){
+       /* Strip any <think>...</think> block, then extract the JSON object. */
+       var stripped=rawCandidates[ri].replace(/<think>[\s\S]*?<\/think>/gi,"").trim();
+       if(!stripped)continue;
+       var jm=stripped.match(/\{[\s\S]*\}/);
+       txt=jm?jm[0]:stripped;
+     }
+     if(!txt){
+       /* Last resort: the JSON may have been inside the think block itself. */
+       for(var fi=0;fi<rawCandidates.length&&!txt;fi++){
+         var fm=rawCandidates[fi].match(/\{[\s\S]*\}/);
+         if(fm)txt=fm[0];
+       }
+     }
+   }
+   if(!txt||!String(txt).trim())throw providerFail(name,"the reply came back empty — try again.");
    return {text:txt,note:"via "+name};
  }).catch(function(e){
    if(e&&e.plain)throw e;
