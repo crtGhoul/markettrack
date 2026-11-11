@@ -86,7 +86,11 @@ main{max-width:760px;margin:0 auto;padding:12px 14px 24px}
 .recent-row{display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:none;border-top:1px solid var(--line);border-radius:0;padding:10px 4px;background:transparent;font-weight:400}
 .recent-row:first-of-type{border-top:none}
 .plus-btn{width:44px;height:44px;min-width:44px;border-radius:50%;background:var(--green);color:#fff;border:none;font-size:1.3rem;padding:0;flex:none}
-nav.bottom{position:fixed;left:0;right:0;bottom:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60}
+/* Bottom nav: fixed to the viewport bottom. The translate3d/backface-visibility
+   pair promotes it to its own compositing layer — without it, iOS Safari paints
+   the bar as part of the page during scroll, so it lags behind and renders
+   mid-screen with page content flowing underneath it (user screenshot, Nov 11). */
+nav.bottom{position:fixed;left:0;right:0;top:auto;bottom:0;width:100%;height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
 nav.bottom button{flex:1;border:none;background:transparent;border-radius:0;font-size:.78rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);position:relative;padding:4px}
 nav.bottom button .ic{font-size:1.25rem;line-height:1}
 nav.bottom button.on{color:var(--green);font-weight:800}
