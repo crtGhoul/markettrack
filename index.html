@@ -361,6 +361,20 @@ svg text{fill:var(--muted)}
       </div>
       <div id="key-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Your key is saved only in this browser, on this device, and is sent only to Google when you use an AI feature.</p>
+      <hr class="sep">
+      <h3 style="margin:0 0 6px">Backup Gemini key <span class="muted small-txt">— optional, fallback only</span></h3>
+      <p class="small-txt" style="margin-top:0">Add a second Gemini key here if you have one — for example from a free project. It is <strong>used automatically only if your main key above fails</strong> (out of credit, daily limit, or a model issue). If the main key works, the backup is never used. Leave it blank to keep using just your main key, exactly as today. The app also falls back to the lighter Flash-Lite model automatically if the main model fails.</p>
+      <label for="backup-key-input">Backup Gemini API key — paste here (optional)</label>
+      <div class="row">
+        <input id="backup-key-input" type="password" placeholder="Paste your backup Gemini key here" autocomplete="off" aria-label="Backup Google AI Studio API key">
+        <button id="backup-key-show" type="button">Show</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary grow" id="backup-key-save">Save backup key</button>
+        <button id="backup-key-clear">Remove</button>
+      </div>
+      <div id="backup-key-status" style="margin-top:8px"></div>
+      <p class="muted small-txt">Backup key is saved only in this browser, on this device, and is sent only to Google when a Gemini call needs the fallback.</p>
     </div>
 
     <div class="card">
@@ -701,14 +715,14 @@ var ACTS={4:"Walk",11:"Run",8:"Cycle",5:"Weights",9:"Swim",3:"Yoga"};
 
 /* ================= State ================= */
 var KEY="markettrack-v1";
-var DEFAULTS={apiKey:"",usdaApiKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
+var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
  profile:{weightLb:180,heightIn:68,age:30,sex:"male",activity:"moderate",lossRate:1},
  days:{},customFoods:[]};
 function loadState(){
  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object"){
    s.targets=Object.assign({},DEFAULTS.targets,s.targets||{});
    s.profile=Object.assign({},DEFAULTS.profile,s.profile||{});
-   s.days=s.days||{};s.customFoods=s.customFoods||[];s.apiKey=s.apiKey||"";s.usdaApiKey=s.usdaApiKey||"";return s;}}catch(e){}
+   s.days=s.days||{};s.customFoods=s.customFoods||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";return s;}}catch(e){}
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
@@ -781,7 +795,7 @@ function renderToday(){
  var lbl=viewDate.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
  if(dayKey(viewDate)===dayKey(new Date()))lbl+=" · Today";
  document.getElementById("date-label").textContent=lbl;
- document.getElementById("today-key-area").innerHTML=state.apiKey
+ document.getElementById("today-key-area").innerHTML=(state.apiKey||state.backupApiKey)
   ?'<div class="strip-ok">✓ AI key saved — AI fill-in and label scan are on.</div>'
   :'<div class="banner-amber"><h2>Add your Google AI Studio API key</h2><p class="small-txt" style="margin:0 0 10px">It powers the AI fill-in and label photo scan in Foods. Free from Google — takes about a minute. Everything else already works without it.</p><button class="primary" data-go="settings" style="width:100%">Go to Settings — add API key</button></div>';
  bindGo(document.getElementById("today-key-area"));
@@ -834,8 +848,8 @@ function renderToday(){
    document.getElementById("store-bars").innerHTML=skeys.sort(function(a,b){return byStore[b]-byStore[a];}).map(function(s){return '<div style="margin-bottom:10px"><div class="row"><span class="grow small-txt"><span class="badge '+((STORES[s]||{}).cls||"custom")+'">'+esc((STORES[s]||{}).name||"Custom")+'</span></span><span class="small-txt muted">'+fmt(byStore[s])+' kcal</span></div><div class="bar-track"><div class="bar-fill" style="width:'+(byStore[s]/mx*100)+'%"></div></div></div>';}).join("");
  } else document.getElementById("store-bars").innerHTML='<p class="muted small-txt">Nothing logged for this day yet.</p>';
  renderRecent(document.getElementById("recent-today"));
- document.getElementById("nav-dot").classList.toggle("show",!state.apiKey);
- document.getElementById("nav-key-hint").style.display=state.apiKey?"none":"block";
+ document.getElementById("nav-dot").classList.toggle("show",!(state.apiKey||state.backupApiKey));
+ document.getElementById("nav-key-hint").style.display=(state.apiKey||state.backupApiKey)?"none":"block";
 }
 function bindGo(scope){(scope||document).querySelectorAll("[data-go]").forEach(function(b){if(!b._bound){b._bound=true;b.addEventListener("click",function(){go(b.getAttribute("data-go"));});}});}
 function recentFoods(){
@@ -1079,12 +1093,11 @@ document.getElementById("barcode-btn").addEventListener("click",function(){
 
 /* ================= Gemini (AI fill-in + label scan) ================= */
 function noKeyHtml(){return '<div class="nokey"><strong>No API key saved yet</strong><p class="small-txt" style="margin:6px 0">AI features need your free Google AI Studio key.</p><button class="primary" data-go="settings">Go to Settings — add API key</button></div>';}
-function gemini(parts){
- var key=state.apiKey;
- return fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",{
+function geminiAttempt(key,model,parts){
+ return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",{
   method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},
   body:JSON.stringify({contents:[{parts:parts}]})
- }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};});})
+ }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
  .then(function(res){
    if(!res.ok){var msg=(res.j.error&&res.j.error.message)||"Request failed";
      if(res.status===402||/prepayment credits are depleted|prepay/i.test(msg))throw new Error("PREPAY");
@@ -1095,6 +1108,27 @@ function gemini(parts){
    return txt||"";
  });
 }
+function gemini(parts){
+ var mainKey=(state.apiKey||"").trim();
+ var backupKey=(state.backupApiKey||"").trim();
+ var PRIMARY="gemini-3.8-flash";
+ var LITE="gemini-3.5-flash-lite";
+ var attempts=[];
+ if(mainKey)attempts.push({key:mainKey,model:PRIMARY,label:"",isBackup:false,isLite:false});
+ if(backupKey&&backupKey!==mainKey)attempts.push({key:backupKey,model:PRIMARY,label:"Used backup key",isBackup:true,isLite:false});
+ if(mainKey)attempts.push({key:mainKey,model:LITE,label:"Used Flash-Lite",isBackup:false,isLite:true});
+ if(backupKey&&backupKey!==mainKey)attempts.push({key:backupKey,model:LITE,label:"Used backup key · Flash-Lite",isBackup:true,isLite:true});
+ if(!attempts.length)return Promise.reject(new Error("OTHER"));
+ var lastErr=new Error("OTHER");
+ function tryNext(idx){
+   if(idx>=attempts.length)return Promise.reject(lastErr);
+   var att=attempts[idx];
+   return geminiAttempt(att.key,att.model,parts).then(function(txt){
+     return {text:txt,note:att.label||"",model:att.model,isBackup:att.isBackup,isLite:att.isLite};
+   }).catch(function(e){lastErr=e||new Error("OTHER");return tryNext(idx+1);});
+ }
+ return tryNext(0);
+}
 function geminiErr(e){
  if(e&&e.message==="PREPAY")return "Your Gemini prepaid balance is $0 — add credit in AI Studio Billing to use AI features. Everything else in the app still works.";
  if(e&&e.message==="MODEL_RETIRED")return "Google retired this AI model — update the app to the newest version with the Refresh button.";
@@ -1104,17 +1138,17 @@ function geminiErr(e){
 function parseJson(txt){var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Couldn't read the AI reply.");return JSON.parse(m[0]);}
 function renderAiArea(){
  var el=document.getElementById("ai-area");
- if(!state.apiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
+ if(!state.apiKey&&!state.backupApiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
  el.innerHTML='<div class="row"><input id="ai-input" placeholder="e.g. large chicken burrito with rice and cheese"><button class="primary" id="ai-btn">Estimate</button></div><div id="ai-result" style="margin-top:8px"></div>';
  document.getElementById("ai-btn").addEventListener("click",function(){
    var q=document.getElementById("ai-input").value.trim(),out=document.getElementById("ai-result");
    if(!q){toast("Describe the food first.");return;}
    out.innerHTML='<p class="muted small-txt">Asking AI…</p>';
    gemini([{text:'Estimate nutrition for one serving of: "'+q+'". Reply with ONLY JSON: {"name":"...","serving":"1 serving","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving weight in grams (0 if truly unknown).'}])
-    .then(function(txt){var d=parseJson(txt);
+    .then(function(res){var txt=(res&&typeof res==="object")?res.text:res;var fallbackNote=(res&&res.note)?res.note:"";var d=parseJson(txt);
       var f={id:"ai"+Date.now(),name:d.name||q,store:"custom",cat:"prepared",serving:d.serving||"1 serving",kcal:Math.round(d.kcal||0),p:r1(d.protein||0),c:r1(d.carbs||0),f:r1(d.fat||0),fiber:r1(d.fiber||0),grams:d.servingGrams?Math.round(d.servingGrams):null,src:"ai"};
       offCache[f.id]=f;
-      out.innerHTML='<div class="food-card" style="margin:0"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge ai">AI estimate</span></span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(f.serving)+(f.grams?' ('+f.grams+' g)':"")+' · P '+f.p+' · C '+f.c+' · F '+f.f+' · Fiber '+f.fiber+'</div><div class="row"><button class="primary grow" id="ai-log">Log it</button><button id="ai-save">Save to my index</button></div></div>';
+      out.innerHTML='<div class="food-card" style="margin:0"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge ai">AI estimate</span></span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 10px">'+esc(f.serving)+(f.grams?' ('+f.grams+' g)':"")+' · P '+f.p+' · C '+f.c+' · F '+f.f+' · Fiber '+f.fiber+'</div><div class="row"><button class="primary grow" id="ai-log">Log it</button><button id="ai-save">Save to my index</button></div></div>'+(fallbackNote?'<p class="muted small-txt" style="margin:8px 2px 0">'+esc(fallbackNote)+'</p>':"");
       document.getElementById("ai-log").addEventListener("click",function(){logFood(f,document.getElementById("log-meal").value,1,dayKey(new Date()));toast("Added "+f.name);});
       document.getElementById("ai-save").addEventListener("click",function(){state.customFoods.push(f);save();toast("Saved to your Foods index.");filterFoods();});
     }).catch(function(e){out.innerHTML='<p class="err">'+esc(geminiErr(e))+'</p>';});
@@ -1122,7 +1156,7 @@ function renderAiArea(){
 }
 function renderScanArea(){
  var el=document.getElementById("scan-area");if(!el)return;
- if(!state.apiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
+ if(!state.apiKey&&!state.backupApiKey){el.innerHTML=noKeyHtml();bindGo(el);return;}
  el.innerHTML='<p class="muted small-txt" style="margin-top:0">Take or pick a photo of the nutrition label — AI reads it and fills the form below.</p><input type="file" id="scan-file" accept="image/*"><div id="scan-msg" style="margin-top:8px"></div>';
  document.getElementById("scan-file").addEventListener("change",function(ev){
    var file=ev.target.files[0];if(!file)return;var msg=document.getElementById("scan-msg");msg.innerHTML='<span class="muted small-txt">Reading the label…</span>';
@@ -1130,14 +1164,14 @@ function renderScanArea(){
    rd.onload=function(){
      var b64=String(rd.result).split(",")[1];
      gemini([{text:'Read this nutrition label photo. Reply with ONLY JSON: {"name":"product name if visible else Food","serving":"serving size text","servingGrams":0,"kcal":0,"protein":0,"carbs":0,"fat":0,"fiber":0} where servingGrams is the serving size weight in grams taken from the label (for example 30 if the label says 30g; 0 if the label gives no gram weight).'},{inline_data:{mime_type:file.type||"image/jpeg",data:b64}}])
-      .then(function(txt){var d=parseJson(txt);
+      .then(function(res){var txt=(res&&typeof res==="object")?res.text:res;var fallbackNote=(res&&res.note)?res.note:"";var d=parseJson(txt);
         document.getElementById("cf-name").value=d.name||"";
         document.getElementById("cf-serving").value=d.serving||"";
         if(d.servingGrams)document.getElementById("cf-grams").value=Math.round(d.servingGrams);
         document.getElementById("cf-kcal").value=Math.round(d.kcal||0);
         document.getElementById("cf-p").value=r1(d.protein||0);document.getElementById("cf-c").value=r1(d.carbs||0);
         document.getElementById("cf-f").value=r1(d.fat||0);document.getElementById("cf-fiber").value=r1(d.fiber||0);
-        msg.innerHTML='<span class="ok-msg">Label read — check the numbers, then Save food.</span>';
+        msg.innerHTML='<span class="ok-msg">Label read — check the numbers, then Save food.</span>'+(fallbackNote?'<br><span class="muted small-txt">'+esc(fallbackNote)+'</span>':"");
       }).catch(function(e){msg.innerHTML='<span class="err">'+esc(geminiErr(e))+'</span>';});
    };
    rd.readAsDataURL(file);
@@ -1289,6 +1323,8 @@ function renderCalcPreview(){
 function renderSettings(){
  document.getElementById("api-key-input").value=state.apiKey||"";
  document.getElementById("key-status").innerHTML=state.apiKey?'<span class="ok-msg">✓ Key saved in this browser.</span>':'<span class="muted small-txt">No key saved yet.</span>';
+ var bkEl=document.getElementById("backup-key-input");if(bkEl)bkEl.value=state.backupApiKey||"";
+ var bsEl=document.getElementById("backup-key-status");if(bsEl)bsEl.innerHTML=state.backupApiKey?'<span class="ok-msg">✓ Backup key saved — it will be used automatically only if the main key fails.</span>':'<span class="muted small-txt">No backup key saved — the main key and Flash-Lite fallback still work on their own.</span>';
  var uk=document.getElementById("usda-key-input");if(uk)uk.value=state.usdaApiKey||"";
  var us=document.getElementById("usda-key-status");if(us)us.innerHTML=state.usdaApiKey?'<span class="ok-msg">✓ USDA key saved in this browser — USDA search is on in Foods.</span>':'<span class="muted small-txt">No USDA key saved yet — Foods search still works via your catalog and Open Food Facts.</span>';
  var p=state.profile;
@@ -1321,6 +1357,15 @@ document.getElementById("key-save").addEventListener("click",function(){
 document.getElementById("key-clear").addEventListener("click",function(){state.apiKey="";save();renderSettings();toast("API key removed.");});
 document.getElementById("key-show").addEventListener("click",function(){
  var i=document.getElementById("api-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
+});
+var _bks=document.getElementById("backup-key-save");if(_bks)_bks.addEventListener("click",function(){
+ var v=document.getElementById("backup-key-input").value.trim();
+ if(!v){toast("Paste your backup API key first.");return;}
+ state.backupApiKey=v;save();renderSettings();toast("Backup API key saved in this browser.");
+});
+var _bkc=document.getElementById("backup-key-clear");if(_bkc)_bkc.addEventListener("click",function(){state.backupApiKey="";save();renderSettings();toast("Backup API key removed.");});
+var _bksh=document.getElementById("backup-key-show");if(_bksh)_bksh.addEventListener("click",function(){
+ var i=document.getElementById("backup-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
 document.getElementById("usda-key-save").addEventListener("click",function(){
  var v=document.getElementById("usda-key-input").value.trim();
