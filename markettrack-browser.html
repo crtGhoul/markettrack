@@ -73,6 +73,9 @@ main{max-width:760px;margin:0 auto;padding:12px 14px 24px}
 .stepper .val{min-width:38px;text-align:center;font-weight:700}
 .badge{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;vertical-align:middle}
 .badge.heb{background:#c8102e}.badge.walmart{background:#0071ce}.badge.sams{background:#0067a0}.badge.joev{background:#e87722}.badge.custom{background:#6b7280}.badge.off{background:#374151}.badge.ai{background:#7c3aed}.badge.usda{background:#0f766e}.badge.catalog{background:#64748b}
+.badge.mcdonalds{background:#da291c}.badge.whataburger{background:#e36414}.badge.chickfila{background:#a6192e}.badge.wendys{background:#841617}.badge.burgerking{background:#502314}.badge.canes{background:#ce0e2d}.badge.popeyes{background:#dd6b20}.badge.kfc{background:#8d0801}.badge.tacobell{background:#5f259f}.badge.chipotle{background:#a81612}.badge.torchys{background:#9a3412}.badge.dominos{background:#006491}.badge.pizzahut{background:#b02a30}.badge.littlecaesars{background:#f26722}.badge.panda{background:#b91c1c}.badge.subway{background:#00843d}.badge.panera{background:#4a7729}.badge.sonic{background:#1d4e9e}.badge.dq{background:#d62828}.badge.starbucks{background:#00704a}.badge.jackinthebox{background:#9d0208}.badge.arbys{background:#7f1d1d}
+.rst-group{font-weight:800;font-size:1rem;margin:16px 2px 8px}
+.rst-group:first-child{margin-top:4px}
 .chip{border-radius:999px;padding:6px 12px;min-height:38px;font-size:.88rem}
 .chip.on{background:var(--green);color:#fff;border-color:var(--green)}
 .food-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--card);padding:12px;margin-bottom:10px}
@@ -517,6 +520,25 @@ textarea{resize:vertical}
     <div class="card">
       <h3>📍 Nearby stores <span class="muted small-txt">— tap one to filter, tap again to clear</span></h3>
       <div class="store-strip" id="nearby-strip"></div>
+    </div>
+
+    <div class="card" id="restaurants-card">
+      <h2>🍔 Restaurants near Katy</h2>
+      <p class="muted small-txt" style="margin:0 0 10px">The most-ordered items at 22 chains around Katy — 256 items, with calories and macros from each chain's own published nutrition (researched Nov 2026). They log to a meal exactly like foods, using the “Log to meal” choice above; where a serving weight is published you can also log by grams. Pizza is per slice of a 14″ large unless the slice says otherwise.</p>
+      <details>
+        <summary style="font-weight:700;cursor:pointer;min-height:44px;display:flex;align-items:center">Good to know before you log</summary>
+        <ul class="small-txt muted" style="margin:6px 0 4px;padding-left:18px;line-height:1.55">
+          <li><strong>Whataburger</strong> figures come from Whataburger's official nutrition PDF dated March 2021 — the most recent complete official document available. Whataburger may have tweaked some items since; its current app/website values are the final authority.</li>
+          <li><strong>Wendy's small chili</strong> is 280 kcal in the current US menu panels used here, but some older pages list 170 kcal — worth a double-check in the Wendy's app.</li>
+          <li><strong>Dairy Queen</strong> burgers and chicken come from DQ's official US food table dated Aug 26, 2024, read through a secondary nutrition calculator (DQ's food page itself couldn't be opened directly) — they are not freshly verified. The Blizzards come from DQ's current treat table (Sep 2026).</li>
+          <li>Where a chain doesn't publish a number, it's left blank — never filled in as 0. Burger King and KFC don't publish fiber at all; Wendy's, Chipotle, Torchy's and Panda Express don't publish it per item, and a few items (like Panera's Fuji Apple Chicken Salad) publish calories and protein only.</li>
+          <li>Chipotle bowls and burritos are the standard builds, added up from Chipotle's official per-ingredient values. Little Caesars slices are the official whole-pizza totals divided by 8, and KFC's 3 tenders are 3× the published single-tender values.</li>
+        </ul>
+      </details>
+      <label for="rst-search" style="margin-top:8px">Search restaurants &amp; items</label>
+      <input id="rst-search" type="search" placeholder="Try “Big Mac”, “burrito bowl”, “Blizzard”…" autocomplete="off" aria-label="Search restaurants and items">
+      <div class="row wrap" style="margin-top:10px" id="rst-chips"></div>
+      <div id="rst-results"></div>
     </div>
 
     <div class="card" id="basket-card">
@@ -1369,6 +1391,286 @@ function deriveGrams(name,serving){
 var CATALOG=RAW.map(function(r,i){return{id:"cat"+i,name:r[0],store:r[1],cat:r[2],serving:r[3],kcal:r[4],p:r[5],c:r[6],f:r[7],fiber:r[8],grams:(r[9]||deriveGrams(r[0],r[3])),src:"catalog"};});
 var STORES={heb:{name:"H-E-B",cls:"heb"},walmart:{name:"Walmart",cls:"walmart"},sams:{name:"Sam's Club",cls:"sams"},joev:{name:"Joe V's",cls:"joev"},custom:{name:"Custom",cls:"custom"},off:{name:"Open Food Facts",cls:"off"},usda:{name:"USDA",cls:"usda"}};
 var CATS={produce:"Produce",protein:"Protein",dairy:"Dairy & Eggs",bakery:"Bakery",pantry:"Pantry",frozen:"Frozen",snacks:"Snacks",beverages:"Beverages",prepared:"Prepared & Deli"};
+/* ================= Restaurants index (Katy, TX) =================
+   Researched 2026-11-10/11 from each chain's own published nutrition
+   (see ~/workspace/research_notes/restaurants/). Values are used exactly
+   as researched — nothing estimated. null = the source does not publish
+   that value (unknown, never 0). Grams are present only where the source
+   publishes a serving weight; otherwise items log by serving.
+   Row: [restaurant, name, serving, kcal, protein, carbs, fat, fiber, grams, fiberDisplay?]
+   Caveats carried from the research: Whataburger figures are from its
+   official 2021 nutrition PDF; Wendy's small chili is flagged (280 kcal
+   in current US panels vs 170 on older pages); Dairy Queen food items
+   are from DQ's 2024 food table via a secondary calculator. */
+var RESTAURANT_META={
+ mcdonalds:{name:"McDonald's"},whataburger:{name:"Whataburger"},chickfila:{name:"Chick-fil-A"},wendys:{name:"Wendy's"},
+ burgerking:{name:"Burger King"},canes:{name:"Raising Cane's"},popeyes:{name:"Popeyes"},kfc:{name:"KFC"},
+ tacobell:{name:"Taco Bell"},chipotle:{name:"Chipotle"},torchys:{name:"Torchy's Tacos"},dominos:{name:"Domino's"},
+ pizzahut:{name:"Pizza Hut"},littlecaesars:{name:"Little Caesars"},panda:{name:"Panda Express"},subway:{name:"Subway"},
+ panera:{name:"Panera Bread"},sonic:{name:"Sonic"},dq:{name:"Dairy Queen"},starbucks:{name:"Starbucks"},
+ jackinthebox:{name:"Jack in the Box"},arbys:{name:"Arby's"}};
+var RST_ORDER=["mcdonalds","whataburger","chickfila","wendys","burgerking","canes","popeyes","kfc","tacobell","chipotle","torchys","dominos","pizzahut","littlecaesars","panda","subway","panera","sonic","dq","starbucks","jackinthebox","arbys"];
+var RST_RAW=[
+["mcdonalds","Big Mac®","1 sandwich (217 g)",580,25,45,34,3,217],
+["mcdonalds","Quarter Pounder® with Cheese","1 sandwich",520,30,42,26,2,null],
+["mcdonalds","Double Quarter Pounder® with Cheese","1 sandwich",740,48,43,42,3,null],
+["mcdonalds","McDouble®","1 sandwich",390,22,32,20,2,null],
+["mcdonalds","Cheeseburger","1 sandwich",300,15,31,13,2,null],
+["mcdonalds","Hamburger","1 sandwich",250,12,30,9,1,null],
+["mcdonalds","McChicken®","1 sandwich",390,14,38,21,1,null],
+["mcdonalds","McCrispy®","1 sandwich",470,26,46,20,1,null],
+["mcdonalds","Filet-O-Fish®","1 sandwich",380,16,38,19,1,null],
+["mcdonalds","Chicken McNuggets® (10 piece)","10 pieces",410,23,26,24,1,null],
+["mcdonalds","Egg McMuffin®","1 sandwich",310,17,30,13,2,null],
+["mcdonalds","World Famous Fries® (Medium)","Medium",320,5,43,15,4,null],
+["whataburger","Whataburger® (#1)","1 burger (316 g)",590,29,62,25,4,316],
+["whataburger","Double Meat Whataburger® (#2)","1 burger",830,47,62,44,4,null],
+["whataburger","Whataburger® Patty Melt","1 sandwich (331 g)",940,49,45,61,1,331],
+["whataburger","Whataburger Jr.® (#7)","1 burger",310,14,37,11,2,null],
+["whataburger","Jalapeño & Cheese Whataburger® (#4)","1 burger",680,34,63,32,4,null],
+["whataburger","Bacon & Cheese Whataburger® (#5)","1 burger",750,39,62,37,4,null],
+["whataburger","Whatachick'n® Sandwich (with Whatasauce™, #10)","1 sandwich",540,32,54,22,3,null],
+["whataburger","Grilled Chicken Sandwich (with Whatasauce™, #11)","1 sandwich",430,32,44,14,4,null],
+["whataburger","Spicy Chicken Sandwich (#12)","1 sandwich",550,31,50,26,4,null],
+["whataburger","Honey Butter Chicken Biscuit (#25)","1 biscuit (155 g)",580,13,52,36,2,155],
+["whataburger","French Fries (Medium)","Medium",400,4,51,21,4,null],
+["whataburger","Onion Rings (Medium)","Medium",300,4,33,17,4,null],
+["chickfila","Chick-fil-A Chicken Sandwich","183 g",420,29,41,16,1,183],
+["chickfila","Spicy Chicken Sandwich","188 g",450,28,44,18,1,188],
+["chickfila","Chick-fil-A Deluxe Sandwich","247 g",490,32,43,21,1,247],
+["chickfila","Grilled Chicken Sandwich","206 g",390,28,45,11,3,206],
+["chickfila","Chick-fil-A Nuggets (8 ct)","113 g",250,27,11,11,0,113],
+["chickfila","Grilled Nuggets (8 ct)","95 g",130,25,1,3,0,95],
+["chickfila","Chick-n-Strips (3 ct)","136 g",310,29,16,14,0,136],
+["chickfila","Chick-fil-A Cool Wrap","231 g",660,43,32,45,14,231],
+["chickfila","Waffle Potato Fries (medium)","125 g",420,5,45,24,5,125],
+["chickfila","Mac & Cheese","227 g",450,20,28,29,3,227],
+["chickfila","Cobb Salad","411 g",830,41,31,60,5,411],
+["chickfila","Chick-fil-A Chicken Biscuit","153 g",460,19,45,23,2,153],
+["wendys","Dave's Single","1 burger",560,31,37,34,null,null],
+["wendys","Dave's Double","1 burger",810,50,37,52,2,null],
+["wendys","Baconator","1 burger",890,59,36,58,1,null],
+["wendys","Son of Baconator","1 burger",590,34,35,36,null,null],
+["wendys","Classic Chicken Sandwich","1 sandwich",550,28,55,25,null,null],
+["wendys","Spicy Chicken Sandwich","1 sandwich",560,28,55,26,null,null],
+["wendys","Chicken Nuggets (10 pc)","10 pc",430,23,22,27,null,null],
+["wendys","Chicken Tenders (3 pc)","3 pc",420,33,22,22,null,null],
+["wendys","Natural-Cut Fries (medium)","medium",350,5,47,16,4,null],
+["wendys","Chili (small)","small",280,19,24,12,null,null],
+["wendys","Parmesan Caesar Salad","entrée only, dressing excluded",270,31,12,11,null,null],
+["wendys","Classic Chocolate Frosty (small)","small",310,9,49,9,1,null],
+["burgerking","Whopper","1 sandwich",710,34,57,42,null,null],
+["burgerking","Whopper Jr.","1 sandwich",340,15,30,19,null,null],
+["burgerking","Whopper with Cheese","1 sandwich",790,37,58,49,null,null],
+["burgerking","Double Whopper","1 sandwich",980,56,57,62,null,null],
+["burgerking","Bacon King","1 sandwich",1260,69,58,84,null,null],
+["burgerking","Cheeseburger","1 sandwich",300,16,30,14,null,null],
+["burgerking","Original Chicken Sandwich","1 sandwich",680,23,63,39,null,null],
+["burgerking","Royal Crispy Chicken","1 sandwich",600,31,54,31,null,null],
+["burgerking","Chicken Fries","8 pieces",220,13,16,12,null,null],
+["burgerking","Chicken Nuggets","10 pieces",520,26,31,32,null,null],
+["burgerking","French Fries","1 medium order",370,5,50,17,null,null],
+["burgerking","Onion Rings","1 medium order",290,4,39,13,null,null],
+["canes","Chicken Finger","1 finger (55 g)",130,12,5,6,null,55,"<1"],
+["canes","Crinkle-Cut Fries","1 serving (144 g)",420,5,53,21,6,144],
+["canes","Texas Toast","1 slice (47 g)",150,4,23,4.5,2,47],
+["canes","Coleslaw","1 serving (87 g)",90,1,10,6,2,87],
+["canes","Cane's Sauce","1.5 oz (43 g)",190,0,6,18,null,43,"<1"],
+["canes","Chicken Sandwich","1 sandwich (297 g)",810,45,68,40,4,297],
+["canes","The 3 Finger Combo","3 fingers, fries, 1 sauce, Texas toast (no drink)",1050,46,84,58,9,null],
+["canes","The Box Combo","4 fingers, fries, 1 sauce, Texas toast, coleslaw (no drink)",1270,60,99,70,11,null],
+["canes","The Caniac Combo","6 fingers, fries, 2 sauces, Texas toast, coleslaw (no drink)",1810,87,126,106,15,null],
+["canes","The Sandwich Combo","Chicken Sandwich + fries (no drink)",1130,50,109,56,9,null],
+["canes","The Kids Combo","2 fingers, fries, 1 sauce (no drink)",640,28,40,41,5,null],
+["canes","Lemonade","Regular, 22 fl oz",290,0,76,0,null,null],
+["popeyes","Classic Chicken Sandwich","1 sandwich",700,28,50,42,2,null],
+["popeyes","Spicy Chicken Sandwich","1 sandwich",700,28,50,42,2,null],
+["popeyes","Classic or Spicy Tenders","3 pieces",390,35,25,19,null,null],
+["popeyes","Blackened Tenders","3 pieces",170,28,2,6,null,null],
+["popeyes","Signature Chicken — Breast (Classic or Spicy)","1 piece",620,52,17,30,null,null],
+["popeyes","Signature Chicken — Thigh (Classic or Spicy)","1 piece",490,25,18,34,null,null],
+["popeyes","Signature Chicken — Leg (Classic or Spicy)","1 piece",200,15,9,12,null,null],
+["popeyes","Signature Chicken — Wing (Classic or Spicy)","1 piece",220,14,11,15,null,null],
+["popeyes","Cajun Fries","1 regular",270,3,31,15,3,null],
+["popeyes","Homestyle Mac & Cheese","1 regular",280,11,16,20,0,null],
+["popeyes","Mashed Potatoes with Cajun Gravy","1 regular",110,3,13,6,0,null],
+["popeyes","Biscuit","1 biscuit",230,3,24,14,1,null],
+["kfc","Original Recipe Chicken — Breast","1 piece, 172 g",390,39,11,21,null,172],
+["kfc","Original Recipe Chicken — Thigh","1 piece, 104 g",280,19,8,19,null,104],
+["kfc","Original Recipe Chicken — Drumstick","1 piece, 53 g",130,12,4,8,null,53],
+["kfc","Extra Crispy Chicken — Breast","1 piece",530,35,18,35,null,null],
+["kfc","Kentucky Grilled Chicken — Breast","1 piece",210,38,0,7,null,null],
+["kfc","Classic Chicken Sandwich","1 sandwich, 235 g",650,34,49,35,null,235],
+["kfc","Spicy Chicken Sandwich","1 sandwich",620,34,49,33,null,null],
+["kfc","Original Recipe Tenders","3 tenders",510,33,60,18,null,null],
+["kfc","Famous Bowl","1 bowl",590,31,67,22,null,null],
+["kfc","Chicken Pot Pie","1 pot pie",720,26,60,41,null,null],
+["kfc","Mashed Potatoes with Gravy","1 individual",130,3,20,4.5,null,null],
+["kfc","Secret Recipe Fries","1 individual",320,5,41,15,null,null],
+["tacobell","Crunchy Taco","1 taco",170,8,13,9,3,null],
+["tacobell","Crunchy Taco Supreme","1 taco",190,8,15,11,3,null],
+["tacobell","Soft Taco","1 taco",180,9,18,8,3,null],
+["tacobell","Nacho Cheese Doritos Locos Tacos","1 taco",170,8,13,10,3,null],
+["tacobell","Chalupa Supreme","1 chalupa",350,12,32,20,4,null],
+["tacobell","Cheesy Gordita Crunch","1",490,20,42,28,6,null],
+["tacobell","Bean Burrito","1 burrito",360,13,54,10,8,null],
+["tacobell","Beefy 5-Layer Burrito","1 burrito",490,17,65,18,7,null],
+["tacobell","Burrito Supreme","1 burrito",390,16,51,14,8,null],
+["tacobell","Crunchwrap Supreme","1",530,15,73,20,6,null],
+["tacobell","Mexican Pizza","1",530,19,50,28,8,null],
+["tacobell","Chicken Quesadilla","1",510,26,41,26,3,null],
+["chipotle","Chicken Burrito Bowl","1 bowl — chicken, white rice, black beans, tomato salsa, cheese, sour cream",765,52,69,30,null,null],
+["chipotle","Chicken Burrito","1 burrito — same build as the bowl, plus flour tortilla",1085,60,119,38,null,null],
+["chipotle","Steak Burrito Bowl","1 bowl — steak, white rice, black beans, tomato salsa, cheese, sour cream",735,41,70,29,null,null],
+["chipotle","Carnitas Burrito Bowl","1 bowl — carnitas, white rice, black beans, tomato salsa, cheese, sour cream",795,43,69,35,null,null],
+["chipotle","Barbacoa Burrito Bowl","1 bowl — barbacoa, white rice, black beans, tomato salsa, cheese, sour cream",755,44,71,30,null,null],
+["chipotle","Chicken","4 oz",180,32,0,7,null,null],
+["chipotle","Steak","4 oz",150,21,1,6,null,null],
+["chipotle","Carnitas","4 oz",210,23,0,12,null,null],
+["chipotle","Guacamole (side)","1 side",230,2,8,22,null,null],
+["chipotle","Chips (large, side)","1 side",540,7,73,25,null,null],
+["chipotle","Chips & Guacamole","1 side",770,9,81,47,null,null],
+["chipotle","Queso Blanco (side)","1 side",120,5,4,9,null,null],
+["torchys","Trailer Park (flour, poblano sauce)","1 taco",298,17,22,15,null,null],
+["torchys","Trailer Park Trashy (flour, poblano sauce)","1 taco",355,19,23,20,null,null],
+["torchys","Chicken Fajita (flour, tomatillo sauce)","1 taco",353,20,20,21,null,null],
+["torchys","Democrat (corn, tomatillo)","1 taco",168,10,20,5,null,null],
+["torchys","Crossroads (corn, tomatillo sauce)","1 taco",346,20,18,22,null,null],
+["torchys","Green Chile Pork (corn, tomatillo sauce)","1 taco",217,11,26,10,null,null],
+["torchys","Baja Shrimp (corn, chipotle sauce)","1 taco",267,12,24,14,null,null],
+["torchys","Grilled Baja Shrimp (corn, chipotle sauce)","1 taco",169,9,6,12,null,null],
+["torchys","Green Chile Queso & Chips (regular)","1 order",643,21,32,46,null,null],
+["torchys","Migas (flour, tomatillo sauce)","1 taco",379,17,27,23,null,null],
+["dominos","Cheese, Classic Hand-Tossed","1 slice (108 g)",278,12,36,10,2.4,108],
+["dominos","Pepperoni, Classic Hand-Tossed","1 slice (113 g)",308,13,36,13,2.4,113],
+["dominos","Pepperoni, Ultimate Deep Dish","1 slice (123 g)",348,14,39,15,3,123],
+["dominos","Pepperoni, Crunchy Thin","1 slice (79 g)",259,11,20,15,2.1,79],
+["dominos","ExtravaganZZa (Large)","1 slice",380,16,36,19,null,null],
+["dominos","MeatZZa (Large)","1 slice",370,15,34,18,null,null],
+["dominos","Pacific Veggie (Large)","1 slice",310,12,35,13,null,null],
+["dominos","Ultimate Pepperoni (Large)","1 slice",360,15,34,18,null,null],
+["pizzahut","Cheese, Hand-Tossed","1 slice (123 g)",320,15,38,12,2,123],
+["pizzahut","Pepperoni, Hand-Tossed","1 slice (121 g)",330,15,38,14,2,121],
+["pizzahut","Cheese, Pan","1 slice (129 g)",360,15,37,17,2,129],
+["pizzahut","Pepperoni, Pan","1 slice (128 g)",380,15,36,19,2,128],
+["pizzahut","Supreme, Pan","1 slice (158 g)",420,17,38,23,2,158],
+["pizzahut","Meat Lover's, Pan","1 slice (160 g)",480,20,37,28,2,160],
+["pizzahut","Pepperoni & Mushroom, Pan","1 slice (136 g)",350,14,37,17,2,136],
+["pizzahut","Cheese, Thin 'N Crispy","1 slice (88 g)",260,12,29,11,1,88],
+["pizzahut","Pepperoni, Thin 'N Crispy","1 slice (86 g)",280,13,28,13,1,86],
+["pizzahut","Supreme, Thin 'N Crispy","1 slice (120 g)",330,15,30,17,2,120],
+['littlecaesars',"Classic Pepperoni",'1 slice (1/8 of 14" Large)',288,14,31,12,2,null],
+['littlecaesars',"Classic Cheese",'1 slice (1/8 of 14" Large)',244,12,31,8,2,null],
+['littlecaesars',"Classic Italian Sausage",'1 slice (1/8 of 14" Large)',284,14,32,11,2,null],
+['littlecaesars',"ExtraMostBestest Pepperoni",'1 slice (1/8 of 14" Large)',313,15,32,14,2,null],
+['littlecaesars',"Stuffed Crust Pepperoni",'1 slice (1/8 of 14" Large)',373,18,32,19,2,null],
+['littlecaesars',"Pretzel Crust (with Pizza Sauce)",'1 slice (1/8 of 14" Large)',260,11,30,11,1,null],
+['littlecaesars',"Thin Crust Pepperoni",'1 slice (1/8 of 14" Large)',266,12,19,16,1,null],
+['littlecaesars',"Detroit-Style Deep Dish Pepperoni","1 piece (1/8 of pizza)",346,16,40,14,2,null],
+["littlecaesars","Crazy Bread","1 stick (1 of 8)",100,3,16,3,1,null],
+["littlecaesars","Italian Cheese Bread","1 stick (1 of 10)",134,6,16,5,1,null],
+["littlecaesars","Pepperoni Cheese Bread","1 stick (1 of 10)",152,7,16,7,1,null],
+["littlecaesars","Pepperoni Crazy Puffs","1 order",680,34,56,36,3,null],
+["panda","Orange Chicken","5.92 oz",510,16,53,24,null,null],
+["panda","Grilled Teriyaki Chicken","6 oz",275,33,14,10,null,null],
+["panda","Kung Pao Chicken","6.73 oz",320,17,15,21,null,null],
+["panda","Beijing Beef","5.6 oz",470,14,46,26,null,null],
+["panda","Broccoli Beef","5.44 oz",150,9,13,7,null,null],
+["panda","Honey Walnut Shrimp","4.39 oz",430,13,32,28,null,null],
+["panda","Black Pepper Chicken","6.3 oz",280,13,15,19,null,null],
+["panda","Mushroom Chicken","5.7 oz",220,13,10,14,null,null],
+["panda","Chow Mein","11 oz",600,15,94,23,null,null],
+["panda","Fried Rice","11 oz",620,13,101,19,null,null],
+["panda","White Steamed Rice","11 oz",520,10,118,0,null,null],
+["panda","Super Greens (side)","10 oz",130,9,14,4,null,null],
+['subway',"Steak Philly",'6" (192 g)',510,28,43,25,2,192],
+['subway',"Chipotle Philly",'6" (198 g)',490,30,44,22,null,198],
+['subway',"Grilled Chicken",'6" (247 g)',510,31,43,24,null,247],
+['subway',"Chicken & Bacon Ranch",'6" (262 g)',580,35,44,29,null,262],
+['subway',"Sweet Onion Chicken Teriyaki",'6" (256 g)',430,29,55,11,null,256],
+['subway',"B.M.T.",'6" (237 g)',590,26,44,35,null,237],
+['subway',"Spicy Italian",'6" (236 g)',660,26,44,43,null,236],
+['subway',"5 Meat Italian",'6" (300 g)',660,39,46,36,null,300],
+['subway',"Meatball Marinara",'6" (233 g)',550,26,52,27,null,233],
+['subway',"Oven-Roasted Turkey",'6" (229 g)',470,25,42,22,null,229],
+['subway',"Black Forest Ham",'6" (229 g)',480,25,44,22,null,229],
+['subway',"Roast Beef",'6" (244 g)',490,30,44,22,null,244],
+["panera","Asiago Cheese Bagel","1 bagel",350,14,55,9,3,null],
+["panera","Cinnamon Crunch Bagel","1 bagel",430,13,78,7,3,null],
+["panera","Bacon, Egg & Cheese on Croissant","1 sandwich",480,22,33,29,2,null],
+["panera","Sausage, Egg & Cheese on Artisan Ciabatta","1 sandwich",610,28,51,33,2,null],
+["panera","Steak & Wake on Ciabatta","1 sandwich",520,32,53,20,2,null],
+["panera","Green Goddess Cobb Salad with Chicken","whole salad",580,40,30,34,null,null],
+["panera","Fuji Apple Chicken Salad","whole salad",710,30,null,null,null,null],
+["panera","Toasted Frontega Chicken","whole sandwich",860,40,87,39,null,null],
+["panera","Bacon Turkey Bravo Sandwich","whole sandwich",860,47,80,39,null,null],
+["panera","Grilled Chicken & Avo BLT","whole sandwich",940,48,66,55,null,null],
+["panera","Broccoli Cheddar Soup — Bread Bowl","1 bread bowl",930,29,152,23,null,null],
+["panera","Turkey Chili — Bowl","1 bowl",300,21,31,10,null,null],
+["sonic","SONIC Cheeseburger","1 burger",700,30,52,41,null,null],
+["sonic","Double SONIC Smasher","1 burger",600,35,30,37,null,null],
+["sonic","Triple SONIC Smasher","1 burger",780,48,31,51,null,null],
+["sonic","Crispy Chicken Sandwich","1 sandwich",520,24,52,24,null,null],
+["sonic","Crispy Tenders","3 pc",260,21,16,12,null,null],
+["sonic","All-American Hot Dog","1 hot dog",410,13,42,21,null,null],
+["sonic","Chili Cheese Coney","1 coney",470,18,34,29,null,null],
+["sonic","Jr. Cheeseburger","1 burger",370,16,34,19,null,null],
+["sonic","Corn Dog","1 corn dog",230,6,23,13,null,null],
+["sonic","Groovy Fries","Medium",370,null,null,null,null,null],
+["sonic","SuperSONIC Breakfast Burrito","1 burrito",590,24,49,33,3,null],
+["sonic","Cherry Slush","Medium",230,null,null,null,null,null],
+["dq","OREO Cookie Blizzard","Medium",820,17,121,30,1,null],
+["dq","Butterfinger Blizzard","Medium",800,20,118,28,2,null],
+["dq","Reese's Peanut Butter Cups Blizzard","Medium",820,21,113,34,2,null],
+["dq","Chocolate Chip Cookie Dough Blizzard","Medium",1030,18,151,40,2,null],
+["dq","Heath Blizzard","Medium",880,17,124,37,1,null],
+["dq","M&M's Blizzard","Medium",880,18,135,29,2,null],
+["dq","Mint OREO Blizzard","Medium",880,17,137,30,1,null],
+["dq","Snickers Blizzard","Medium",800,19,120,28,1,null],
+["dq","Turtle Pecan Cluster Blizzard","Medium",1020,18,123,52,3,null],
+["dq","Choco Brownie Extreme Blizzard","Medium",980,20,137,43,5,null],
+["dq","Original Cheeseburger","Single",370,17,37,18,null,null],
+["dq","Chicken Strip Basket","4 pc (with fries, Texas toast, sauce)",1020,35,111,48,6,null],
+["starbucks","Caffè Latte (2% milk)","Grande, 16 fl oz",190,13,19,7,0,null],
+["starbucks","Caramel Macchiato (2% milk)","Grande, 16 fl oz",250,10,35,7,0,null],
+["starbucks","Iced Caramel Macchiato (2% milk)","Grande, 16 fl oz",250,10,37,7,0,null],
+["starbucks","White Chocolate Mocha (2% milk, whipped cream)","Grande, 16 fl oz",390,13,47,17,0,null],
+["starbucks","Caffè Mocha (2% milk, whipped cream)","Grande, 16 fl oz",370,14,43,15,4,null],
+["starbucks","Chai Latte (2% milk)","Grande, 16 fl oz",200,7,33,4.5,0,null],
+["starbucks","Caffè Americano","Grande, 16 fl oz",15,1,2,0,0,null],
+["starbucks","Cold Brew","Grande, 16 fl oz",5,0,null,0,0,null],
+["starbucks","Iced Brown Sugar Oatmilk Shaken Espresso","Grande, 16 fl oz · 15 g sugar (total carbs not published)",150,2,null,4.5,null,null],
+["starbucks","Pink Drink","Grande, 16 fl oz · 25 g sugar (total carbs not published)",140,0,null,2.5,null,null],
+["starbucks","Strawberry Açaí Refresher","Grande, 16 fl oz · 21 g sugar (total carbs not published)",90,0,null,0,null,null],
+["starbucks","Egg White & Roasted Red Pepper Egg Bites","1 order (2 bites)",170,12,null,null,null,null],
+["jackinthebox","Jumbo Jack","1 burger (216 g)",520,23,32,33,2,216],
+["jackinthebox","Jumbo Jack Cheeseburger","1 burger (238 g)",600,28,33,40,2,238],
+["jackinthebox","Jr. Jumbo Jack","1 burger (151 g)",400,14,31,25,1,151],
+["jackinthebox","Sourdough Jack","1 burger (224 g)",690,33,39,44,3,224],
+["jackinthebox","Classic Smashed Jack","1 burger (229 g)",720,26,46,48,2,229],
+["jackinthebox","Bacon Double Smashed Jack","1 burger (339 g)",1120,45,49,83,2,339],
+["jackinthebox","Taco","1 taco (81 g)",170,6,16,9,2,81],
+["jackinthebox","Chicken Sandwich","1 sandwich (181 g)",560,15,40,38,2,181],
+["jackinthebox","Crispy Chicken Strips","3 pc (180 g)",470,33,32,23,3,180],
+["jackinthebox","French Fries","Medium (137 g)",430,5,58,20,4,137],
+["jackinthebox","Breakfast Jack","1 sandwich (128 g)",410,16,26,25,2,128],
+["jackinthebox","Vanilla Shake","Regular, 16 oz (338 g)",580,13,82,22,0,338],
+["arbys","Classic Roast Beef","1 sandwich (154 g)",360,23,37,14,2,154],
+["arbys","Classic Beef 'n Cheddar","1 sandwich (195 g)",450,23,45,20,2,195],
+["arbys","Double Roast Beef","1 sandwich (239 g)",510,38,38,24,2,239],
+["arbys","Double Beef 'n Cheddar","1 sandwich (301 g)",630,39,48,32,2,301],
+["arbys","Half Pound Roast Beef","1 sandwich (295 g)",610,48,38,30,2,295],
+["arbys","Half Pound Beef 'n Cheddar","1 sandwich (358 g)",740,49,48,39,2,358],
+["arbys","Roast Beef Slider","1 slider (77 g)",180,11,18,7,1,77],
+["arbys","Angus Cheesesteak","1 sandwich (290 g)",690,38,61,34,4,290],
+["arbys","Spicy Angus Cheesesteak","1 sandwich (305 g)",800,39,64,44,4,305],
+["arbys","Crispy Chicken","1 sandwich (240 g)",530,24,59,22,4,240],
+["arbys","Chicken Tenders","3 pc (129 g)",370,23,28,18,2,129],
+["arbys","Roast Beef Gyro","1 gyro (273 g)",540,24,48,29,3,273]
+];
+var RESTAURANTS=RST_RAW.map(function(r,i){var f={id:"rst"+i,name:r[1],store:r[0],cat:"restaurant",serving:r[2],kcal:r[3],p:r[4],c:r[5],f:r[6],fiber:r[7],grams:r[8]||null,src:"restaurant"};if(r[9])f.fiberTxt=r[9];return f;});
+var RST_BY_ID={};RESTAURANTS.forEach(function(f){RST_BY_ID[f.id]=f;});
+for(var rstKey in RESTAURANT_META){STORES[rstKey]={name:RESTAURANT_META[rstKey].name,cls:rstKey};}
 var MEALS=[["breakfast","🍳 Breakfast"],["lunch","🥗 Lunch"],["dinner","🍽️ Dinner"],["snack","🍎 Snack"]];
 var NEARBY=[
  {store:"walmart",name:"Walmart Supercenter",addr:"1313 N Fry Rd",dist:"0.8 mi"},
@@ -1504,7 +1806,7 @@ function deleteEntryWithUndo(dayKeyStr,entryId,rerender){
  });
 }
 function allFoods(){return state.customFoods.concat(CATALOG);}
-function findFood(id){var f=allFoods().filter(function(x){return x.id===id;});return f[0]||null;}
+function findFood(id){var f=allFoods().filter(function(x){return x.id===id;});return f[0]||RST_BY_ID[id]||null;}
 /* ================= Meal components =================
    A user food may carry components: [{name, grams, kcal, p, c, f, fiber}]
    where kcal/p/c/f/fiber are PER 100 g of that ingredient and grams is how
@@ -2012,7 +2314,7 @@ function renderFoods(){
  document.querySelectorAll("[data-nearby]").forEach(function(b){b.addEventListener("click",function(){
    storeFilter=storeFilter===b.getAttribute("data-nearby")?"":b.getAttribute("data-nearby");renderFoods();
  });});
- renderAiArea();renderScanArea();renderDescribeArea();renderPlateArea();renderMenuArea();filterFoods();renderSavedMeals();renderRecent(document.getElementById("recent-foods"));renderBasket();
+ renderAiArea();renderScanArea();renderDescribeArea();renderPlateArea();renderMenuArea();filterFoods();renderSavedMeals();renderRecent(document.getElementById("recent-foods"));renderBasket();renderRestaurants();
 }
 var offTimer=null;
 document.getElementById("food-search").addEventListener("input",function(){filterFoods();clearTimeout(offTimer);offTimer=setTimeout(maybeOffSearch,700);});
@@ -2077,6 +2379,50 @@ function bindFoodCards(scope){
    var f=findFood(b.getAttribute("data-remove"));if(f)openRemoveConfirm(f);
  });});
 }
+/* ================= Restaurants =================
+   A separate index from the grocery catalog: items are searchable and
+   filterable by restaurant, and log through the same logFood/openAdjust
+   path as foods. Macros a chain doesn't publish stay null and are simply
+   not shown — never rendered as 0. */
+var rstFilter="";
+function renderRestaurants(){
+ var chipsEl=document.getElementById("rst-chips");if(!chipsEl)return;
+ chipsEl.innerHTML=[["","All restaurants"]].concat(RST_ORDER.map(function(k){return [k,RESTAURANT_META[k].name];})).map(function(s){
+   return '<button class="chip'+(rstFilter===s[0]?" on":"")+'" data-rstchip="'+s[0]+'">'+esc(s[1])+'</button>';}).join("");
+ chipsEl.querySelectorAll("[data-rstchip]").forEach(function(b){b.addEventListener("click",function(){rstFilter=b.getAttribute("data-rstchip");renderRestaurants();});});
+ filterRestaurants();
+}
+function restaurantCard(f){
+ var st=STORES[f.store]||STORES.custom;
+ var parts=[esc(f.serving)];
+ if(f.p!=null)parts.push("P "+r1(f.p));
+ if(f.c!=null)parts.push("C "+r1(f.c));
+ if(f.f!=null)parts.push("F "+r1(f.f));
+ if(f.fiberTxt)parts.push("Fiber "+esc(f.fiberTxt));
+ else if(f.fiber!=null)parts.push("Fiber "+r1(f.fiber));
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge '+st.cls+'">'+esc(st.name)+'</span> '+qualityDotHtml(f)+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 6px">'+parts.join(" · ")+'</div>'+qualityLineHtml(f)+'<div class="row wrap"><button class="primary grow" data-rlog="'+f.id+'">Log to '+mealNames[document.getElementById("log-meal").value]+'</button><button data-radj="'+f.id+'">Servings…</button></div></div>';
+}
+function filterRestaurants(){
+ var el=document.getElementById("rst-results");if(!el)return;
+ var q=(document.getElementById("rst-search").value||"").trim().toLowerCase();
+ var list=RESTAURANTS.filter(function(f){
+   return (!rstFilter||f.store===rstFilter)&&(!q||f.name.toLowerCase().indexOf(q)>=0||(RESTAURANT_META[f.store].name.toLowerCase().indexOf(q)>=0));});
+ if(!list.length){el.innerHTML='<p class="muted small-txt" style="margin:10px 0 2px">No restaurant items match that search.</p>';return;}
+ var html="",lastStore="";
+ list.forEach(function(f){
+   if(f.store!==lastStore){lastStore=f.store;var cnt=RESTAURANTS.filter(function(x){return x.store===f.store;}).length;html+='<div class="rst-group">'+esc(RESTAURANT_META[f.store].name)+' <span class="muted small-txt">· '+cnt+' items</span></div>';}
+   html+=restaurantCard(f);
+ });
+ el.innerHTML=html;
+ el.querySelectorAll("[data-rlog]").forEach(function(b){b.addEventListener("click",function(){
+   var f=RST_BY_ID[b.getAttribute("data-rlog")];if(!f)return;var meal=document.getElementById("log-meal").value;
+   logFood(f,meal,1,dayKey(viewDate));toast("Added "+f.name+" to "+mealNames[meal]+" — keep adding, this list stays here.");flashAddedButton(b);
+ });});
+ el.querySelectorAll("[data-radj]").forEach(function(b){b.addEventListener("click",function(){
+   var f=RST_BY_ID[b.getAttribute("data-radj")];if(f)openAdjust(f,document.getElementById("log-meal").value);
+ });});
+}
+document.getElementById("rst-search").addEventListener("input",filterRestaurants);
 /* Open Food Facts */
 function offFood(p){
  var n=p.nutriments||{},sq=parseFloat(p.serving_quantity)||100;
