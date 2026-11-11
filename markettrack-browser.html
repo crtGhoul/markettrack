@@ -2851,6 +2851,11 @@ function openAICompatCall(provider,parts){
  var body={model:isGroq?"qwen/qwen3.8-27b":"nvidia/nemotron-3.5-super-vl:free",
   messages:[{role:"user",content:partsToOpenAI(parts)}],
   response_format:{type:"json_object"},temperature:0};
+ /* OpenRouter only: Nemotron reasons by default and its thinking can eat
+    the whole reply, leaving message.content empty. exclude:true hides the
+    reasoning trace so only the final answer comes back in content. Do NOT
+    put a reasoning level value here instead — that form was rejected. */
+ if(!isGroq)body.reasoning={exclude:true};
  return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
   method:"POST",headers:headers,body:JSON.stringify(body)
  }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
