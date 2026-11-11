@@ -1371,6 +1371,11 @@ function openAdjust(food,meal){
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
      document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+     /* Set the Servings input's value property AND attribute to the clean 2-decimal
+        rounded number last, so its underlying value is exactly what is displayed
+        (0.33 for 50 g, 0.67 for 100 g) — never the long float. Calories above were
+        already computed from the exact grams and are not touched here. */
+     var _gsi=document.getElementById("adj-serv-input");if(_gsi){var _grv=fmtServ(adjServ);_gsi.value=_grv;try{_gsi.setAttribute("value",_grv);}catch(e){}}
    });});
  }
  var si=document.getElementById("adj-serv-input");if(si)si.value="1";
@@ -1393,6 +1398,9 @@ function openAdjustForEdit(entry,dayKeyStr){
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
      document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+     /* Same as in openAdjust: force the Servings input's value property AND
+        attribute to the clean 2-decimal rounded number (0.33 / 0.67). */
+     var _gsi=document.getElementById("adj-serv-input");if(_gsi){var _grv=fmtServ(adjServ);_gsi.value=_grv;try{_gsi.setAttribute("value",_grv);}catch(e){}}
    });});
  }
  if(eg.g!=null&&eg.sg){adjGramsExact=eg.g;adjExactServ=eg.g/eg.sg;}else{clearAdjExact();}
@@ -1408,6 +1416,9 @@ function adjGramsChanged(){
  if(!g||g<0){return;}
  adjServ=roundServ(g/adjFood.grams);
  updAdjPreviewFromGrams(g);
+ /* Typed-grams path: also leave the Servings input's value property AND
+    attribute at the clean 2-decimal rounded number. */
+ var _gsi=document.getElementById("adj-serv-input");if(_gsi){var _grv=fmtServ(adjServ);_gsi.value=_grv;try{_gsi.setAttribute("value",_grv);}catch(e){}}
 }
 document.getElementById("adj-grams").addEventListener("input",adjGramsChanged);
 document.getElementById("adj-grams").addEventListener("change",adjGramsChanged);
