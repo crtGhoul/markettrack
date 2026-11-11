@@ -1002,6 +1002,7 @@ textarea{resize:vertical}
       <p class="muted small-txt" id="adj-grams-hint" style="margin:4px 0 0"></p>
     </div>
     <div id="adj-preview" class="small-txt" style="background:var(--green-soft);border-radius:10px;padding:10px;margin:8px 0"></div>
+    <p id="adj-save-note" class="small-txt" style="display:none;background:var(--green-soft);border-radius:10px;padding:8px 10px;margin:8px 0 0">New food: confirming below <strong>saves it to your Foods index and adds it to the meal</strong> — one step, no need to go find it again.</p>
     <label for="adj-meal">Meal</label>
     <select id="adj-meal">
       <option value="breakfast">Breakfast</option><option value="lunch">Lunch</option>
@@ -2193,11 +2194,36 @@ document.getElementById("act-add").addEventListener("click",function(){
 
 /* ================= Adjuster modal ================= */
 var adjFood=null,adjServ=1,adjExactServ=null,adjGramsExact=null;
+/* Unified found-food flow: when a food was just found (search / barcode /
+   label scan / AI) and is not in the Foods index yet, adjSaveFood holds it
+   and confirming the adjuster saves it to the index AND logs it in one
+   step — no separate save-then-find-it-again step. */
+var adjSaveFood=null;
+function foodNeedsSaving(f){
+ if(!f||!f.name)return false;
+ if(findFood(f.id))return false;
+ return !(state.customFoods||[]).some(function(x){return x.name===f.name;});
+}
+function ensureFoodInIndex(f){
+ if(!foodNeedsSaving(f))return false;
+ var nf={};for(var k in f){if(Object.prototype.hasOwnProperty.call(f,k))nf[k]=f[k];}
+ nf.id="cf"+Date.now()+Math.random().toString(36).slice(2,5);
+ nf.micros=copyMicros(f.micros);
+ if(!state.customFoods)state.customFoods=[];
+ state.customFoods.push(nf);save();
+ return true;
+}
+function syncAdjSaveUi(){
+ var note=document.getElementById("adj-save-note");
+ if(note)note.style.display=adjSaveFood?"block":"none";
+ var b=document.getElementById("adj-add");
+ if(b&&!editEntryId)b.textContent=adjSaveFood?"Save & add to day":"Add to day";
+}
 function adjFactor(){return adjExactServ!=null?adjExactServ:adjServ;}
 function setServInputRounded(){var s=document.getElementById("adj-serv-input");if(!s)return;var v=fmtServ(adjServ);s.value=v;try{s.setAttribute("value",v);}catch(e){}}
 function clearAdjExact(){adjExactServ=null;adjGramsExact=null;}
 var editEntryId=null,editDayKey=null;
-function resetEditState(){editEntryId=null;editDayKey=null;var b=document.getElementById("adj-add");if(b)b.textContent="Add to day";}
+function resetEditState(){editEntryId=null;editDayKey=null;adjSaveFood=null;var b=document.getElementById("adj-add");if(b)b.textContent="Add to day";var n=document.getElementById("adj-save-note");if(n)n.style.display="none";}
 function updAdjPreview(){
  if(!adjFood)return;
  var fc=adjFactor();
@@ -2210,14 +2236,18 @@ function updAdjPreview(){
  if(adjFood.grams){gIn.value=gDisp;}
  document.getElementById("adj-preview").innerHTML="<strong>"+fmtServ(adjServ)+" servings</strong>"+(adjFood.grams?" · <strong>"+gDisp+" g</strong>":"")+" → <strong>"+fmt(adjFood.kcal*fc)+" kcal</strong> · P "+r1(adjFood.p*fc)+" · C "+r1(adjFood.c*fc)+" · F "+r1(adjFood.f*fc)+" · Fiber "+r1((adjFood.fiber||0)*fc)+esc(scaledMicroLineHtml(adjFood,fc))+((knownMicros(adjFood).length||!showMicrosOn())?"":' <span class="muted">· Micronutrients unknown for this food</span>');
 }
-function openAdjust(food,meal){
+function openAdjust(food,meal,saveToIndex){
  resetEditState();
  adjFood=food;adjServ=1;clearAdjExact();
+ /* Found foods (not yet in the index) save + log in one confirm; foods
+    already in the index just log, exactly as before. */
+ adjSaveFood=(saveToIndex&&foodNeedsSaving(food))?food:null;
  document.getElementById("adj-title").textContent=food.name;
  document.getElementById("adj-nut").innerHTML=esc(food.serving+(food.grams?" ("+food.grams+" g)":"")+" · "+fmt(food.kcal)+" kcal · P "+r1(food.p)+" · C "+r1(food.c)+" · F "+r1(food.f))+sourceBadgeHtml(food)+(showMicrosOn()?'<br>'+(knownMicros(food).length?esc("Micros per serving:"+scaledMicroLineHtml(food,1).replace(/^ · /," ")):"Micronutrients: unknown — not listed for this food"):"")+qualityLineHtml(food);
  document.getElementById("adj-grams-row").style.display=food.grams?"block":"none";
  document.getElementById("adj-grams-hint").textContent=food.grams?("1 serving = "+food.grams+" g — type any gram amount and servings adjust to match."):"";
  document.getElementById("adj-meal").value=meal||currentMeal();
+ syncAdjSaveUi();
  var gc=document.getElementById("adj-gram-chips");
  if(gc){
    gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
@@ -2238,8 +2268,9 @@ function openAdjust(food,meal){
 function openAdjustForEdit(entry,dayKeyStr){
  var eg=entryGrams(entry);
  var food={id:entry.foodId||"edit",name:entry.name,store:entry.store,serving:entry.serving,kcal:entry.kcal,p:entry.p,c:entry.c,f:entry.f,fiber:entry.fiber||0,micros:copyMicros(entry.micros),grams:eg.sg,src:entry.src||"custom"};
- adjFood=food;adjServ=entry.servings||1;
+ adjFood=food;adjServ=entry.servings||1;adjSaveFood=null;
  editEntryId=entry.id;editDayKey=dayKeyStr;
+ var _esn=document.getElementById("adj-save-note");if(_esn)_esn.style.display="none";
  document.getElementById("adj-title").textContent="Edit — "+food.name;
  document.getElementById("adj-nut").textContent=food.serving+(food.grams?" ("+food.grams+" g)":"")+" · "+fmt(food.kcal)+" kcal · P "+r1(food.p)+" · C "+r1(food.c)+" · F "+r1(food.f);
  document.getElementById("adj-grams-row").style.display=food.grams?"block":"none";
@@ -2339,9 +2370,15 @@ document.getElementById("adj-add").addEventListener("click",function(){
    }
    resetEditState();
  }
+ /* One step for found foods: save to the Foods index (if new) AND log it. */
+ var savedToIndex=false;
+ if(adjSaveFood){savedToIndex=ensureFoodInIndex(adjFood);adjSaveFood=null;}
  logFood(adjFood,meal,adjServ,dayKey(viewDate));
  if(adjGramsExact!=null&&adjFood.grams){var _td=day(dayKey(viewDate));var _last=_td.entries[_td.entries.length-1];if(_last){_last.grams=adjGramsExact;_last.servingGrams=adjFood.grams;save();}}
- document.getElementById("adjust-modal").classList.remove("open");toast("Added "+adjFood.name+" to "+mealNames[meal]);
+ document.getElementById("adjust-modal").classList.remove("open");
+ if(savedToIndex){toast("Saved "+adjFood.name+" to your index and added to "+mealNames[meal]);try{filterFoods();}catch(e){}}
+ else toast("Added "+adjFood.name+" to "+mealNames[meal]);
+ syncAdjSaveUi();
  if(document.getElementById("view-today").classList.contains("active"))renderToday();
 });
 
@@ -2501,16 +2538,18 @@ function offFood(p){
  return {id:"off"+(p.code||Date.now()),name:(p.product_name||"Unknown product"),store:"off",cat:"pantry",serving:p.serving_size||(sq+" g"),kcal:Math.round(kcal),p:r1(per("proteins")),c:r1(per("carbohydrates")),f:r1(per("fat")),fiber:r1(per("fiber")),grams:p.serving_quantity?sq:null,src:"off",micros:Object.keys(micros).length?micros:null};
 }
 function offCard(f){
- return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge off">Open Food Facts</span>'+sourceBadgeHtml(f)+' '+qualityDotHtml(f)+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 6px">'+esc(f.serving)+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+'</div>'+qualityLineHtml(f)+microLineHtml(f)+'<div class="row wrap"><button class="primary grow" data-offlog="'+esc(f.id)+'">Log it</button><button data-offsave="'+esc(f.id)+'">Save to my index</button><button data-offbasket="'+esc(f.id)+'" aria-label="Add '+esc(f.name)+' to shopping basket">🧺 Basket</button></div></div>';
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge off">Open Food Facts</span>'+sourceBadgeHtml(f)+' '+qualityDotHtml(f)+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 6px">'+esc(f.serving)+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+'</div>'+qualityLineHtml(f)+microLineHtml(f)+'<div class="row wrap"><button class="primary grow" data-offlog="'+esc(f.id)+'">Log it — meal &amp; grams</button><button data-offsave="'+esc(f.id)+'">Save to my index</button><button data-offbasket="'+esc(f.id)+'" aria-label="Add '+esc(f.name)+' to shopping basket">🧺 Basket</button></div></div>';
 }
 var offCache={};
 function showOff(list,el){
  list.forEach(function(f){offCache[f.id]=f;});
  el.innerHTML=list.length?'<h3 style="margin:6px 2px 10px">From Open Food Facts</h3>'+list.map(offCard).join(""):"";
- el.querySelectorAll("[data-offlog]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offlog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
- el.querySelectorAll("[data-offsave]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offsave")];if(!f)return;
-   if(!state.customFoods.some(function(x){return x.name===f.name;})){f.id="cf"+Date.now();state.customFoods.push(f);save();}
-   toast("Saved to your Foods index.");filterFoods();});});
+ /* Unified flow: Log it and Save to my index both open the adjuster sheet
+    (meal defaults to the “Log to meal” choice — the meal the user came
+    from), and its one confirm button saves the food to the index if new
+    AND logs it with the chosen servings/grams. No save-then-re-find step. */
+ el.querySelectorAll("[data-offlog]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offlog")];if(f)openAdjust(f,document.getElementById("log-meal").value,true);});});
+ el.querySelectorAll("[data-offsave]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offsave")];if(f)openAdjust(f,document.getElementById("log-meal").value,true);});});
  el.querySelectorAll("[data-offbasket]").forEach(function(b){b.addEventListener("click",function(){var f=offCache[b.getAttribute("data-offbasket")];if(f){addToBasket(f);flashAddedButton(b);}});});
 }
 /* USDA FoodData Central */
@@ -2573,16 +2612,17 @@ function usdaFood(item){
  return {id:"usda"+(item.fdcId||Date.now()+Math.random().toString(36).slice(2,6)),name:name,store:"usda",cat:"pantry",serving:serving,kcal:Math.round(per100.kcal*scale),p:r1(per100.p*scale),c:r1(per100.c*scale),f:r1(per100.f*scale),fiber:r1(per100.fiber*scale),grams:grams,src:"usda",gtin:item.gtinUpc||"",micros:Object.keys(micros).length?micros:null};
 }
 function usdaCard(f){
- return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge usda">USDA</span>'+sourceBadgeHtml(f)+' '+qualityDotHtml(f)+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 6px">'+esc(f.serving)+(f.grams&&!/g\b/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div>'+qualityLineHtml(f)+microLineHtml(f)+'<div class="row wrap"><button class="primary grow" data-usdalog="'+esc(f.id)+'">Log it</button><button data-usdaadj="'+esc(f.id)+'">Servings…</button><button data-usdasave="'+esc(f.id)+'">Save to my index</button><button data-usdabasket="'+esc(f.id)+'" aria-label="Add '+esc(f.name)+' to shopping basket">🧺 Basket</button></div></div>';
+ return '<div class="food-card"><div class="row"><span class="grow"><strong>'+esc(f.name)+'</strong> <span class="badge usda">USDA</span>'+sourceBadgeHtml(f)+' '+qualityDotHtml(f)+'</span><span class="kcal-big">'+fmt(f.kcal)+' kcal</span></div><div class="muted small-txt" style="margin:4px 0 6px">'+esc(f.serving)+(f.grams&&!/g\b/.test(f.serving)?' ('+f.grams+' g)':"")+' · P '+r1(f.p)+' · C '+r1(f.c)+' · F '+r1(f.f)+' · Fiber '+r1(f.fiber||0)+'</div>'+qualityLineHtml(f)+microLineHtml(f)+'<div class="row wrap"><button class="primary grow" data-usdalog="'+esc(f.id)+'">Log it — meal &amp; grams</button><button data-usdaadj="'+esc(f.id)+'">Servings…</button><button data-usdasave="'+esc(f.id)+'">Save to my index</button><button data-usdabasket="'+esc(f.id)+'" aria-label="Add '+esc(f.name)+' to shopping basket">🧺 Basket</button></div></div>';
 }
 function showUsda(list,el){
  list.forEach(function(f){usdaCache[f.id]=f;});
  el.innerHTML=list.length?'<h3 style="margin:6px 2px 10px">From USDA FoodData Central</h3>'+list.map(usdaCard).join(""):"";
- el.querySelectorAll("[data-usdalog]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdalog")];if(f){logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name+" — keep adding, this list stays here.");flashAddedButton(b);}});});
- el.querySelectorAll("[data-usdaadj]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdaadj")];if(f)openAdjust(f,document.getElementById("log-meal").value);});});
- el.querySelectorAll("[data-usdasave]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdasave")];if(!f)return;
-   if(!state.customFoods.some(function(x){return x.name===f.name;})){var nf=Object.assign({},f);nf.id="cf"+Date.now();state.customFoods.push(nf);save();}
-   toast("Saved to your Foods index.");filterFoods();});});
+ /* Unified flow, same as Open Food Facts: every add/save action opens the
+    adjuster sheet (meal defaults to the “Log to meal” choice) whose one
+    confirm saves the food to the index if new AND logs it. */
+ el.querySelectorAll("[data-usdalog]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdalog")];if(f)openAdjust(f,document.getElementById("log-meal").value,true);});});
+ el.querySelectorAll("[data-usdaadj]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdaadj")];if(f)openAdjust(f,document.getElementById("log-meal").value,true);});});
+ el.querySelectorAll("[data-usdasave]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdasave")];if(f)openAdjust(f,document.getElementById("log-meal").value,true);});});
  el.querySelectorAll("[data-usdabasket]").forEach(function(b){b.addEventListener("click",function(){var f=usdaCache[b.getAttribute("data-usdabasket")];if(f){addToBasket(f);flashAddedButton(b);}});});
 }
 function usdaHintHtml(){return '<p class="muted small-txt" style="margin:10px 2px">Add a USDA key in Settings for more US branded results.</p>';}
@@ -2725,7 +2765,7 @@ function renderAiArea(){
     .then(function(res){var txt=(res&&typeof res==="object")?res.text:res;var fallbackNote=(res&&res.note)?res.note:"";var d=parseJson(txt);
       var base={name:d.name||q,serving:d.serving||"1 serving",grams:d.servingGrams?Math.round(d.servingGrams):"",kcal:Math.round(d.kcal||0),p:r1(d.protein||0),c:r1(d.carbs||0),f:r1(d.fat||0),fiber:r1(d.fiber||0)};
       out.innerHTML='<div class="food-card" style="margin:0"><div class="row"><span class="grow"><strong>Review the AI estimate</strong> <span class="badge ai">AI estimate</span></span></div>'
-      +'<p class="muted small-txt" style="margin:4px 0 10px">Nothing is saved yet — check each field and fix anything that looks off, then log it or save it to your index.</p>'
+      +'<p class="muted small-txt" style="margin:4px 0 10px">Nothing is saved yet — check each field and fix anything that looks off, then continue: you pick the meal and grams, and it saves to your index and logs in one step.</p>'
       +'<div class="grid2">'
       +'<div style="grid-column:1/-1"><label for="aip-name">Name</label><input id="aip-name" value="'+esc(base.name)+'" autocomplete="off"></div>'
       +'<div><label for="aip-serving">Serving</label><input id="aip-serving" value="'+esc(base.serving)+'"></div>'
@@ -2736,14 +2776,17 @@ function renderAiArea(){
       +'<div><label for="aip-f">Fat (g)</label><input id="aip-f" type="number" inputmode="decimal" step="0.1" min="0" value="'+base.f+'"></div>'
       +'<div><label for="aip-fiber">Fiber (g)</label><input id="aip-fiber" type="number" inputmode="decimal" step="0.1" min="0" value="'+base.fiber+'"></div>'
       +'</div>'
-      +'<div class="row" style="margin-top:10px"><button class="primary grow" id="ai-log">Log it</button><button id="ai-save">Save to my index</button></div></div>'
+      +'<div class="row" style="margin-top:10px"><button class="primary grow" id="ai-log">Log it — meal &amp; grams</button><button id="ai-save">Save to my index</button></div></div>'
       +(fallbackNote?'<p class="muted small-txt" style="margin:8px 2px 0">'+esc(fallbackNote)+'</p>':"");
       function readAiPreview(){
        var gv=parseFloat(document.getElementById("aip-grams").value);
        return {id:"ai"+Date.now(),name:document.getElementById("aip-name").value.trim()||q,store:"custom",cat:"prepared",serving:document.getElementById("aip-serving").value.trim()||"1 serving",kcal:Math.round(parseFloat(document.getElementById("aip-kcal").value)||0),p:r1(parseFloat(document.getElementById("aip-p").value)||0),c:r1(parseFloat(document.getElementById("aip-c").value)||0),f:r1(parseFloat(document.getElementById("aip-f").value)||0),fiber:r1(parseFloat(document.getElementById("aip-fiber").value)||0),grams:(gv>0?Math.round(gv):null),src:"ai"};
       }
-      document.getElementById("ai-log").addEventListener("click",function(){var f=readAiPreview();logFood(f,document.getElementById("log-meal").value,1,dayKey(viewDate));toast("Added "+f.name);});
-      document.getElementById("ai-save").addEventListener("click",function(){var f=readAiPreview();state.customFoods.push(f);save();toast("Saved to your Foods index.");filterFoods();});
+      /* Unified flow: both actions open the adjuster sheet (meal defaults
+         to the “Log to meal” choice); one confirm saves the food to the
+         index if new AND logs it with the chosen servings/grams. */
+      document.getElementById("ai-log").addEventListener("click",function(){var f=readAiPreview();openAdjust(f,document.getElementById("log-meal").value,true);});
+      document.getElementById("ai-save").addEventListener("click",function(){var f=readAiPreview();openAdjust(f,document.getElementById("log-meal").value,true);});
     }).catch(function(e){out.innerHTML='<p class="err">'+esc(geminiErr(e))+'</p>';});
  });
 }
@@ -2777,7 +2820,7 @@ function renderScanPreview(d){
  var pv=document.getElementById("scan-preview");if(!pv)return;
  pv.innerHTML='<div style="border:2px solid var(--green);border-radius:10px;padding:10px">'
   +'<div class="row"><span class="grow"><strong>Review the label scan</strong> <span class="badge ai">AI</span></span></div>'
-  +'<p class="muted small-txt" style="margin:4px 0 10px">Nothing is saved yet — check each field and fix anything the scan got wrong, then save. (The form below was filled too, if you prefer to save from there.)</p>'
+  +'<p class="muted small-txt" style="margin:4px 0 10px">Nothing is saved yet — check each field and fix anything the scan got wrong, then continue: you pick the meal and grams, and it saves to your index and logs in one step. (The form below was filled too, if you prefer to save from there.)</p>'
   +'<div class="grid2">'
   +'<div style="grid-column:1/-1"><label for="sp-name">Name</label><input id="sp-name" value="'+esc(d.name||"")+'" autocomplete="off"></div>'
   +'<div><label for="sp-serving">Serving</label><input id="sp-serving" value="'+esc(d.serving||"")+'"></div>'
@@ -2788,7 +2831,7 @@ function renderScanPreview(d){
   +'<div><label for="sp-f">Fat (g)</label><input id="sp-f" type="number" inputmode="decimal" step="0.1" min="0" value="'+r1(d.fat||0)+'"></div>'
   +'<div><label for="sp-fiber">Fiber (g)</label><input id="sp-fiber" type="number" inputmode="decimal" step="0.1" min="0" value="'+r1(d.fiber||0)+'"></div>'
   +'</div>'
-  +'<button class="primary" id="sp-save" style="width:100%;margin-top:10px">Save food to my index</button></div>';
+  +'<button class="primary" id="sp-save" style="width:100%;margin-top:10px">Save &amp; log it — meal &amp; grams</button></div>';
  var sb=document.getElementById("sp-save");if(!sb)return;
  sb.addEventListener("click",function(){
   var name=document.getElementById("sp-name").value.trim(),kcal=parseFloat(document.getElementById("sp-kcal").value);
@@ -2798,8 +2841,11 @@ function renderScanPreview(d){
    serving:document.getElementById("sp-serving").value.trim()||"1 serving",grams:(gv>0?Math.round(gv):null),kcal:Math.round(kcal),
    p:r1(parseFloat(document.getElementById("sp-p").value)||0),c:r1(parseFloat(document.getElementById("sp-c").value)||0),
    f:r1(parseFloat(document.getElementById("sp-f").value)||0),fiber:r1(parseFloat(document.getElementById("sp-fiber").value)||0),src:"custom"};
-  state.customFoods.push(f);save();
-  document.getElementById("custom-modal").classList.remove("open");toast("Saved “"+name+"” to your Foods index.");filterFoods();
+  /* Unified flow: close this modal and open the adjuster sheet — its one
+     confirm saves the scanned food to the index AND logs it to the chosen
+     meal with the chosen grams. Meal defaults to the “Log to meal” choice. */
+  document.getElementById("custom-modal").classList.remove("open");
+  openAdjust(f,(document.getElementById("log-meal")||{}).value||currentMeal(),true);
  });
 }
 /* ================= AI meal logging: describe-a-meal, plate photo, described workouts =================
@@ -4677,7 +4723,7 @@ function captureDrafts(){
  /* Adjuster: only a fresh add (not an edit of a logged entry). */
  var adjModal=document.getElementById("adjust-modal");
  if(adjModal&&adjModal.classList.contains("open")&&adjFood&&!editEntryId){
-   saveDraftSilent("adjust",{food:JSON.parse(JSON.stringify(adjFood)),servings:adjServ,exactServ:adjExactServ,gramsExact:adjGramsExact,gramsVal:(document.getElementById("adj-grams")||{}).value||"",meal:(document.getElementById("adj-meal")||{}).value||currentMeal(),at:Date.now()});
+   saveDraftSilent("adjust",{food:JSON.parse(JSON.stringify(adjFood)),servings:adjServ,exactServ:adjExactServ,gramsExact:adjGramsExact,gramsVal:(document.getElementById("adj-grams")||{}).value||"",meal:(document.getElementById("adj-meal")||{}).value||currentMeal(),saveToIndex:adjSaveFood?true:false,at:Date.now()});
  }
  /* Custom food form: only while its modal is open and something is typed. */
  var cfModal=document.getElementById("custom-modal");
@@ -4727,7 +4773,7 @@ function renderDraftBanner(){
 function resumeDraft(kind){
  var d=loadDrafts()[kind];if(!d)return;
  if(kind==="adjust"&&d.food){
-   openAdjust(d.food,d.meal||currentMeal());
+   openAdjust(d.food,d.meal||currentMeal(),d.saveToIndex);
    adjServ=d.servings||1;
    if(d.gramsExact!=null&&d.food.grams){adjGramsExact=d.gramsExact;adjExactServ=d.exactServ;var gEl=document.getElementById("adj-grams");if(gEl)gEl.value=d.gramsExact;}
    else clearAdjExact();
