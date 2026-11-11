@@ -780,7 +780,7 @@ textarea{resize:vertical}
       <p class="small-txt" style="margin-top:0">Home-screen apps can show an old cached copy. Use Refresh to save everything first, then load the newest version.</p>
       <div class="row wrap" style="margin:10px 0">
         <span class="saved-pill" id="saved-settings"><span class="dot-live"></span><span id="saved-settings-txt">Saved ✓</span></span>
-        <span class="version-stamp">MarketTrack — updated Nov 10, 2026 · v2026.11.10</span>
+        <span class="version-stamp">MarketTrack — updated Nov 11, 2026 · v62</span>
       </div>
       <button class="primary refresh-btn" id="refresh-settings" type="button" style="width:100%;justify-content:center">↻ Refresh app — save &amp; load newest version</button>
       <p class="muted small-txt" style="margin:8px 0 0">This saves all your logs, keys, targets and foods to this browser right before it reloads, so nothing is lost.</p>
@@ -805,13 +805,12 @@ textarea{resize:vertical}
       <select id="ai-provider-select" aria-label="AI provider">
         <option value="gemini">Gemini (Google AI Studio)</option>
         <option value="groq">Groq (free)</option>
-        <option value="openrouter">OpenRouter (free)</option>
       </select>
       <div id="ai-provider-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Each provider has its own key box below — paste the key for the one you picked. If that provider fails, the app tells you and does <strong>not</strong> quietly switch to another one.</p>
       <hr class="sep">
       <h3 style="margin:0 0 6px">Google AI Studio (Gemini) API key</h3>
-      <p class="small-txt" style="margin-top:0"><strong>Where it goes:</strong> paste it in the box below — this is the Gemini key, not the USDA key.</p>
+      <p class="small-txt" style="margin-top:0"><strong>Where it goes:</strong> paste it in the box below — this is the Gemini key, not the USDA key. Gemini's free tier can be slow at times, but it does work — worth trying again if it felt stuck before.</p>
       <ol class="steps">
         <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with Google.</li>
         <li>Tap <strong>Create API key</strong> — it's free.</li>
@@ -844,7 +843,7 @@ textarea{resize:vertical}
       <p class="muted small-txt">Backup key is saved only in this browser, on this device, and is sent only to Google when a Gemini call needs the fallback.</p>
       <hr class="sep">
       <h3 style="margin:0 0 6px">Groq API key <span class="muted small-txt">— free, used only when Groq is the picked provider</span></h3>
-      <p class="small-txt" style="margin-top:0">Groq runs the Qwen 3.8 27B vision model — it reads label photos and answers fast. Free, no card.</p>
+      <p class="small-txt" style="margin-top:0">Groq runs the Qwen 3.8 27B vision model — it reads label photos and answers fast. Free, no card — this is the confirmed-working free option for label scans.</p>
       <ol class="steps">
         <li>Open <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> and sign in.</li>
         <li>Tap <strong>Create API Key</strong> — it's free.</li>
@@ -861,25 +860,6 @@ textarea{resize:vertical}
       </div>
       <div id="groq-key-status" style="margin-top:8px"></div>
       <p class="muted small-txt">Your Groq key is saved only in this browser, on this device, and is sent only to Groq when you use an AI feature with Groq picked.</p>
-      <hr class="sep">
-      <h3 style="margin:0 0 6px">OpenRouter API key <span class="muted small-txt">— free, used only when OpenRouter is the picked provider</span></h3>
-      <p class="small-txt" style="margin-top:0">OpenRouter runs the Nemotron 3.5 Super VL vision model (free version) — it reads label photos too. Free, no card.</p>
-      <ol class="steps">
-        <li>Open <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and sign in.</li>
-        <li>Tap <strong>Create Key</strong> — it's free.</li>
-        <li>Copy the key, paste it below, and tap Save.</li>
-      </ol>
-      <label for="openrouter-key-input">OpenRouter API key — paste here</label>
-      <div class="row">
-        <input id="openrouter-key-input" type="password" placeholder="Paste your OpenRouter key here" autocomplete="off" aria-label="OpenRouter API key">
-        <button id="openrouter-key-show" type="button">Show</button>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <button class="primary grow" id="openrouter-key-save">Save OpenRouter key</button>
-        <button id="openrouter-key-clear">Remove</button>
-      </div>
-      <div id="openrouter-key-status" style="margin-top:8px"></div>
-      <p class="muted small-txt">Your OpenRouter key is saved only in this browser, on this device, and is sent only to OpenRouter when you use an AI feature with OpenRouter picked.</p>
     </div>
 
     <div class="card">
@@ -1015,7 +995,7 @@ textarea{resize:vertical}
         <button id="clear-data" style="color:var(--red)">Erase everything</button>
       </div>
       <div id="data-msg" style="margin-top:8px"></div>
-      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 10, 2026 · Browser version · Saves in this browser only</p>
+      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 11, 2026 · v62 · Browser version · Saves in this browser only</p>
     </div>
 
     <button class="primary" data-go="today" style="width:100%;min-height:52px;font-size:1.05rem">Done — back to Today</button>
@@ -1830,7 +1810,7 @@ function sourceBadgeHtml(f){
 
 /* ================= State ================= */
 var KEY="markettrack-v1";
-var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",aiProvider:"gemini",groqKey:"",openrouterKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
+var DEFAULTS={apiKey:"",backupApiKey:"",usdaApiKey:"",aiProvider:"gemini",groqKey:"",targets:{calories:2000,protein:140,carbs:220,fat:70,fiber:30,water:64},
  profile:{weightLb:180,heightIn:68,age:30,sex:"male",activity:"moderate",lossRate:1},
  days:{},customFoods:[],savedMeals:[],goalWeightLb:null,dietPreset:"",checkin:{lastAt:null,lastDismissedAt:null,history:[]},
  fasting:{active:null,history:[]},mealPlan:{},basket:[],mealTargets:null,
@@ -1839,7 +1819,7 @@ function loadState(){
  try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object"){
    s.targets=Object.assign({},DEFAULTS.targets,s.targets||{});
    s.profile=Object.assign({},DEFAULTS.profile,s.profile||{});
-   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";s.groqKey=s.groqKey||"";s.openrouterKey=s.openrouterKey||"";if(s.aiProvider!=="groq"&&s.aiProvider!=="openrouter")s.aiProvider="gemini";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
+   s.days=s.days||{};s.customFoods=s.customFoods||[];s.savedMeals=s.savedMeals||[];s.apiKey=s.apiKey||"";s.backupApiKey=s.backupApiKey||"";s.usdaApiKey=s.usdaApiKey||"";s.groqKey=s.groqKey||"";if(s.aiProvider!=="groq")s.aiProvider="gemini";if(s.goalWeightLb===undefined)s.goalWeightLb=null;if(s.dietPreset===undefined)s.dietPreset="";if(!s.checkin||typeof s.checkin!=="object")s.checkin={lastAt:null,lastDismissedAt:null,history:[]};if(!Array.isArray(s.checkin.history))s.checkin.history=[];if(!s.fasting||typeof s.fasting!=="object")s.fasting={active:null,history:[]};if(!Array.isArray(s.fasting.history))s.fasting.history=[];if(!s.mealPlan||typeof s.mealPlan!=="object")s.mealPlan={};if(!Array.isArray(s.basket))s.basket=[];if(s.mealTargets===undefined)s.mealTargets=null;if(!s.webdav||typeof s.webdav!=="object")s.webdav={url:"",username:"",password:"",lastSyncAt:null,lastStatus:""};if(!Array.isArray(s.coachHistory))s.coachHistory=[];if(s.healthLastImport===undefined)s.healthLastImport=null;if(s.showMicros===undefined)s.showMicros=true;return s;}}catch(e){}
  return JSON.parse(JSON.stringify(DEFAULTS));
 }
 var state=loadState();
@@ -2805,17 +2785,16 @@ function geminiErr(e){
  if(e&&e.message==="CAP")return "Daily AI limit reached — try again tomorrow. Everything else in the app still works.";
  return "AI ran into a problem — try again in a bit. Everything else in the app still works.";
 }
-/* ================= AI provider picker (Gemini / Groq / OpenRouter) =================
+/* ================= AI provider picker (Gemini / Groq) =================
    AI fill-in and label scan call aiCall(), which routes to the ONE provider
-   picked in Settings. Gemini keeps its existing fallback chain; Groq and
-   OpenRouter never fall back to another provider — a failure is reported
-   with the provider's name so the user can test one provider at a time. */
-function aiProvider(){return (state.aiProvider==="groq"||state.aiProvider==="openrouter")?state.aiProvider:"gemini";}
-function aiProviderName(p){return p==="groq"?"Groq":p==="openrouter"?"OpenRouter":"Gemini";}
+   picked in Settings. Gemini keeps its existing fallback chain; Groq never
+   falls back to another provider — a failure is reported with the
+   provider's name so the user can test one provider at a time. */
+function aiProvider(){return state.aiProvider==="groq"?"groq":"gemini";}
+function aiProviderName(p){return p==="groq"?"Groq":"Gemini";}
 function aiReady(){
  var p=aiProvider();
  if(p==="groq")return !!((state.groqKey||"").trim());
- if(p==="openrouter")return !!((state.openrouterKey||"").trim());
  return !!(state.apiKey||state.backupApiKey);
 }
 function noKeyProviderHtml(){
@@ -2842,23 +2821,15 @@ function partsToOpenAI(parts){
  });
  return content;
 }
-function openAICompatCall(provider,parts){
- var isGroq=provider==="groq";
- var name=isGroq?"Groq":"OpenRouter";
- var key=((isGroq?state.groqKey:state.openrouterKey)||"").trim();
+function groqCall(parts){
+ var name="Groq";
+ var key=((state.groqKey||"").trim());
  var headers={"Content-Type":"application/json","Authorization":"Bearer "+key};
- if(!isGroq){headers["HTTP-Referer"]="https://crtghoul.github.io/markettrack/";headers["X-Title"]="MarketTrack";}
- var body={model:isGroq?"qwen/qwen3.8-27b":"nvidia/nemotron-3.5-super-vl:free",
+ var body={model:"qwen/qwen3.8-27b",
   messages:[{role:"user",content:partsToOpenAI(parts)}],
-  temperature:0};
- /* Groq only: keep forcing JSON mode — Qwen handles it and the user
-    confirmed Groq works. OpenRouter / Nemotron must NOT be sent
-    response_format or a reasoning field: forced JSON mode can make
-    Nemotron return an empty content field for vision input, and hiding
-    reasoning removes the field the answer may arrive in. The prompt
-    already asks for JSON; the reply is parsed out of plain text below. */
- if(isGroq)body.response_format={type:"json_object"};
- return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
+  temperature:0,
+  response_format:{type:"json_object"}};
+ return fetch("https://api.groq.com/openai/v1/chat/completions",{
   method:"POST",headers:headers,body:JSON.stringify(body)
  }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
  .then(function(res){
@@ -2868,45 +2839,13 @@ function openAICompatCall(provider,parts){
      if(res.status===429){
        /* Exactly one request per tap — never auto-retry a 429, or a failed
           tap would burn the user's free daily cap. */
-       if(isGroq)throw providerFail(name,"rate limit reached — wait a bit and try once more. Your key is fine — this is just the free limit. Everything else in the app still works.");
-       throw providerFail(name,"you hit OpenRouter's free limit (50 requests a day on the free tier, 20 per minute) — wait a bit and try once more. Your key is fine — this isn't a key problem. Everything else in the app still works.");
+       throw providerFail(name,"rate limit reached — wait a bit and try once more. Your key is fine — this is just the free limit. Everything else in the app still works.");
      }
      if(res.status===404)throw providerFail(name,"the vision model wasn't found — it may have moved. ("+(apiMsg||"HTTP 404")+")");
      throw providerFail(name,(apiMsg||("the request was refused (HTTP "+res.status+")"))+" — try again in a bit.");
    }
    var msg=(res.j.choices&&res.j.choices[0]&&res.j.choices[0].message)||null;
-   var txt="";
-   if(msg&&isGroq){
-     txt=msg.content||"";
-   }else if(msg){
-     /* OpenRouter / Nemotron: content is often empty even on a successful
-        call — the answer may arrive in reasoning_content or reasoning
-        instead. Take the first non-empty of content, then
-        reasoning_content, then reasoning. */
-     var candidates=[msg.content,msg.reasoning_content,msg.reasoning];
-     var rawCandidates=[];
-     for(var ci=0;ci<candidates.length;ci++){
-       var cand=candidates[ci];
-       var candTxt="";
-       if(typeof cand==="string")candTxt=cand;
-       else if(Array.isArray(cand))candTxt=cand.map(function(part){return typeof part==="string"?part:((part&&part.text)||(part&&part.content)||"");}).join("");
-       if(candTxt&&candTxt.trim())rawCandidates.push(candTxt);
-     }
-     for(var ri=0;ri<rawCandidates.length&&!txt;ri++){
-       /* Strip any <think>...</think> block, then extract the JSON object. */
-       var stripped=rawCandidates[ri].replace(/<think>[\s\S]*?<\/think>/gi,"").trim();
-       if(!stripped)continue;
-       var jm=stripped.match(/\{[\s\S]*\}/);
-       txt=jm?jm[0]:stripped;
-     }
-     if(!txt){
-       /* Last resort: the JSON may have been inside the think block itself. */
-       for(var fi=0;fi<rawCandidates.length&&!txt;fi++){
-         var fm=rawCandidates[fi].match(/\{[\s\S]*\}/);
-         if(fm)txt=fm[0];
-       }
-     }
-   }
+   var txt=msg?(msg.content||""):"";
    if(!txt||!String(txt).trim())throw providerFail(name,"the reply came back empty — try again.");
    return {text:txt,note:"via "+name};
  }).catch(function(e){
@@ -2926,7 +2865,7 @@ function aiCall(parts){
  if(!aiReady()){
    var e=new Error("NO_PROVIDER_KEY");e.plain="No "+aiProviderName(p)+" key saved yet — paste it in Settings.";return Promise.reject(e);
  }
- return openAICompatCall(p,parts);
+ return groqCall(parts);
 }
 function parseJson(txt){var m=txt.match(/\{[\s\S]*\}/);if(!m)throw new Error("Couldn't read the AI reply.");return JSON.parse(m[0]);}
 function renderAiArea(){
@@ -4037,8 +3976,6 @@ function renderSettings(){
  var apSt=document.getElementById("ai-provider-status");if(apSt)apSt.innerHTML='<span class="ok-msg">AI provider: '+esc(aiProviderName(aiProvider()))+'</span>'+(aiReady()?'':' <span class="muted small-txt">— no '+esc(aiProviderName(aiProvider()))+' key saved yet, add it below.</span>');
  var gk=document.getElementById("groq-key-input");if(gk)gk.value=state.groqKey||"";
  var gks=document.getElementById("groq-key-status");if(gks)gks.innerHTML=state.groqKey?'<span class="ok-msg">✓ Groq key saved in this browser.</span>':'<span class="muted small-txt">No Groq key saved yet.</span>';
- var ork=document.getElementById("openrouter-key-input");if(ork)ork.value=state.openrouterKey||"";
- var orks=document.getElementById("openrouter-key-status");if(orks)orks.innerHTML=state.openrouterKey?'<span class="ok-msg">✓ OpenRouter key saved in this browser.</span>':'<span class="muted small-txt">No OpenRouter key saved yet.</span>';
  document.getElementById("api-key-input").value=state.apiKey||"";
  document.getElementById("key-status").innerHTML=state.apiKey?'<span class="ok-msg">✓ Key saved in this browser.</span>':'<span class="muted small-txt">No key saved yet.</span>';
  var bkEl=document.getElementById("backup-key-input");if(bkEl)bkEl.value=state.backupApiKey||"";
@@ -4096,10 +4033,10 @@ document.getElementById("usda-key-clear").addEventListener("click",function(){st
 document.getElementById("usda-key-show").addEventListener("click",function(){
  var i=document.getElementById("usda-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
-/* AI provider picker + Groq / OpenRouter keys — same save pattern as the
+/* AI provider picker + Groq key — same save pattern as the
    Gemini and USDA boxes: keys live only in this browser's saved state. */
 var _apSel=document.getElementById("ai-provider-select");if(_apSel)_apSel.addEventListener("change",function(){
- state.aiProvider=(this.value==="groq"||this.value==="openrouter")?this.value:"gemini";save();renderSettings();
+ state.aiProvider=(this.value==="groq")?this.value:"gemini";save();renderSettings();
  toast("AI provider set to "+aiProviderName(aiProvider())+" — AI fill-in and label scan now use "+aiProviderName(aiProvider())+".");
 });
 var _gks=document.getElementById("groq-key-save");if(_gks)_gks.addEventListener("click",function(){
@@ -4110,15 +4047,6 @@ var _gks=document.getElementById("groq-key-save");if(_gks)_gks.addEventListener(
 var _gkc=document.getElementById("groq-key-clear");if(_gkc)_gkc.addEventListener("click",function(){state.groqKey="";save();renderSettings();toast("Groq API key removed.");});
 var _gksh=document.getElementById("groq-key-show");if(_gksh)_gksh.addEventListener("click",function(){
  var i=document.getElementById("groq-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
-});
-var _orks=document.getElementById("openrouter-key-save");if(_orks)_orks.addEventListener("click",function(){
- var v=document.getElementById("openrouter-key-input").value.trim();
- if(!v){toast("Paste your OpenRouter API key first.");return;}
- state.openrouterKey=v;save();renderSettings();toast("OpenRouter API key saved in this browser.");
-});
-var _orkc=document.getElementById("openrouter-key-clear");if(_orkc)_orkc.addEventListener("click",function(){state.openrouterKey="";save();renderSettings();toast("OpenRouter API key removed.");});
-var _orksh=document.getElementById("openrouter-key-show");if(_orksh)_orksh.addEventListener("click",function(){
- var i=document.getElementById("openrouter-key-input");var show=i.type==="password";i.type=show?"text":"password";this.textContent=show?"Hide":"Show";
 });
 /* Show micronutrients toggle — display only; saves with the rest of the
    settings (same localStorage state), never touches stored micro data. */
