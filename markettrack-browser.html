@@ -863,7 +863,7 @@ textarea{resize:vertical}
       <p class="muted small-txt">Your Groq key is saved only in this browser, on this device, and is sent only to Groq when you use an AI feature with Groq picked.</p>
       <hr class="sep">
       <h3 style="margin:0 0 6px">OpenRouter API key <span class="muted small-txt">— free, used only when OpenRouter is the picked provider</span></h3>
-      <p class="small-txt" style="margin-top:0">OpenRouter runs the Gemma 4 31B vision model (free version) — it reads label photos too. Free, no card.</p>
+      <p class="small-txt" style="margin-top:0">OpenRouter runs the Nemotron 3.5 Super VL vision model (free version) — it reads label photos too. Free, no card.</p>
       <ol class="steps">
         <li>Open <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> and sign in.</li>
         <li>Tap <strong>Create Key</strong> — it's free.</li>
@@ -2848,9 +2848,10 @@ function openAICompatCall(provider,parts){
  var key=((isGroq?state.groqKey:state.openrouterKey)||"").trim();
  var headers={"Content-Type":"application/json","Authorization":"Bearer "+key};
  if(!isGroq){headers["HTTP-Referer"]="https://crtghoul.github.io/markettrack/";headers["X-Title"]="MarketTrack";}
- var body={model:isGroq?"qwen/qwen3.8-27b":"google/gemma-4-31b-it:free",
+ var body={model:isGroq?"qwen/qwen3.8-27b":"nvidia/nemotron-3.5-super-vl:free",
   messages:[{role:"user",content:partsToOpenAI(parts)}],
   response_format:{type:"json_object"},temperature:0};
+ if(!isGroq)body.reasoning={effort:"low"};
  return fetch(isGroq?"https://api.groq.com/openai/v1/chat/completions":"https://openrouter.ai/api/v1/chat/completions",{
   method:"POST",headers:headers,body:JSON.stringify(body)
  }).then(function(r){return r.json().then(function(j){return{ok:r.ok,status:r.status,j:j};}).catch(function(){return{ok:r.ok,status:r.status,j:{}};});})
