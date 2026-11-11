@@ -3985,6 +3985,15 @@ function fmtFastLen(hours){
  if(h<=0)return m+" min";
  return h+"h"+(m?" "+String(m).padStart(2,"0")+"m":"");
 }
+function fastLocalInputValue(ms){
+ var d=new Date(ms),pad=function(n){return String(n).padStart(2,"0");};
+ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+}
+function fastParseInputValue(v){
+ if(!v)return null;
+ var t=new Date(v).getTime();
+ return isNaN(t)?null:t;
+}
 function renderFasting(){
  var el=document.getElementById("fasting-body");if(!el)return;
  var fs=fastState(),a=fs.active;
@@ -3994,18 +4003,25 @@ function renderFasting(){
    return '<div class="fast-hist-row"><span>'+new Date(h.startedAt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})+' · '+new Date(h.startedAt).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+'</span><span><strong>'+fmtFastLen(len)+'</strong> <span class="muted">of '+h.targetHours+'h goal</span></span></div>';
  }).join(""):'<p class="muted small-txt" style="margin:8px 0 0">No completed fasts yet — finished fasts will show here.</p>';
  if(!a){
-   el.innerHTML='<p class="muted small-txt" style="margin:0 0 10px">Not fasting right now. Pick a target length and start — the timer keeps running even if you close the app, and ending the fast logs it below.</p>'
+   el.innerHTML='<p class="muted small-txt" style="margin:0 0 10px">Not fasting right now. Pick a target length and when you actually stopped eating — the timer keeps running even if you close the app, and ending the fast logs it below.</p>'
    +'<div class="row wrap"><div style="flex:1 1 140px"><label for="fast-target">Target length</label><select id="fast-target"><option value="12">12 hours</option><option value="14">14 hours</option><option value="16" selected>16 hours</option><option value="18">18 hours</option><option value="20">20 hours</option><option value="24">24 hours</option><option value="custom">Custom…</option></select></div>'
    +'<div style="width:110px" id="fast-custom-wrap" hidden><label for="fast-custom">Hours</label><input id="fast-custom" type="number" inputmode="decimal" min="1" max="168" step="0.5" placeholder="e.g. 36"></div>'
+   +'<div style="flex:1 1 210px"><label for="fast-start-at">Fast started at</label><input id="fast-start-at" type="datetime-local"></div>'
    +'<button class="primary" id="fast-start" type="button" style="align-self:flex-end">▶ Start fast</button></div>'
+   +'<p class="muted small-txt" style="margin:8px 0 0">Started at is set to right now — change it if you stopped eating earlier, e.g. yesterday at 7:30 PM even if you are only tapping Start at 10 PM. Elapsed time counts from the time you pick.</p>'
    +histHtml;
    var sel=document.getElementById("fast-target");
    if(sel)sel.addEventListener("change",function(){var w=document.getElementById("fast-custom-wrap");if(w)w.hidden=sel.value!=="custom";});
+   var startAtEl=document.getElementById("fast-start-at");
+   if(startAtEl)startAtEl.value=fastLocalInputValue(Date.now());
    var sb=document.getElementById("fast-start");
    if(sb)sb.addEventListener("click",function(){
      var hours=sel&&sel.value==="custom"?(parseFloat(document.getElementById("fast-custom").value)||0):(parseFloat(sel?sel.value:"16")||16);
      if(!(hours>0)||hours>168){toast("Enter a target between 1 and 168 hours.");return;}
-     fastState().active={startedAt:Date.now(),targetHours:Math.round(hours*10)/10};
+     var startAt=fastParseInputValue(startAtEl?startAtEl.value:"");
+     if(startAt===null)startAt=Date.now();
+     if(startAt>Date.now()+60000){toast("Start time can\u2019t be in the future — pick when you stopped eating.");return;}
+     fastState().active={startedAt:startAt,targetHours:Math.round(hours*10)/10};
      save();renderFasting();toast("Fast started — "+hours+"h target. It keeps counting if you close the app.");
    });
    return;
@@ -4019,8 +4035,20 @@ function renderFasting(){
  +'<span class="pill'+(done?"":" warn")+'">'+(done?"🎉 Target reached":"Fasting")+'</span></div>'
  +'<div class="bar-track" style="margin:10px 0 6px"><div class="bar-fill" id="fast-bar" style="width:'+pct+'%"></div></div>'
  +'<div class="small-txt" id="fast-remaining">'+(done?'<strong>Target reached</strong> — you passed your '+a.targetHours+'h goal. End the fast whenever you eat.':'<strong>'+fmtDuration(targetMs-elapsedMs)+'</strong> left of your '+a.targetHours+'h target · ends around '+new Date(a.startedAt+targetMs).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+' '+new Date(a.startedAt+targetMs).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}))+'</div>'
+ +'<div class="row wrap" style="margin-top:10px;align-items:flex-end"><div style="flex:1 1 210px"><label for="fast-edit-start">Fast started at</label><input id="fast-edit-start" type="datetime-local"></div><button id="fast-edit-start-btn" type="button">Update start time</button></div>'
+ +'<p class="muted small-txt" style="margin:6px 0 0">Started it late? Fix the start time to when you actually stopped eating and the elapsed and remaining times update right away.</p>'
  +'<div class="row wrap" style="margin-top:10px"><button class="primary grow" id="fast-end" type="button">✓ End fast &amp; log it</button><button id="fast-discard" type="button" style="color:var(--red)">Discard</button></div>'
  +histHtml;
+ var editStartEl=document.getElementById("fast-edit-start");
+ if(editStartEl)editStartEl.value=fastLocalInputValue(a.startedAt);
+ var editStartBtn=document.getElementById("fast-edit-start-btn");
+ if(editStartBtn)editStartBtn.addEventListener("click",function(){
+   var f=fastState();if(!f.active)return;
+   var newStart=fastParseInputValue(editStartEl?editStartEl.value:"");
+   if(newStart===null){toast("Pick a valid start date and time.");return;}
+   if(newStart>Date.now()+60000){toast("Start time can\u2019t be in the future — pick when you stopped eating.");return;}
+   f.active.startedAt=newStart;save();renderFasting();toast("Start time updated — elapsed now counts from "+new Date(newStart).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+".");
+ });
  var eb=document.getElementById("fast-end");
  if(eb)eb.addEventListener("click",function(){
    var f=fastState();if(!f.active)return;
