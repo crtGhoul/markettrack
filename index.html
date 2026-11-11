@@ -232,6 +232,7 @@ svg text{fill:var(--muted)}
       <h2>⚡ Fast logging</h2>
       <p class="muted small-txt" style="margin:0 0 10px">Copy yesterday into the day you're viewing, or use the copy button on any meal block for just that meal. It adds to what's already here — nothing is overwritten.</p>
       <button class="primary" id="copy-yesterday-all" style="width:100%">📋 Copy yesterday — whole day</button>
+      <div id="copy-yesterday-hint" class="muted small-txt" style="margin-top:8px"></div>
       <div id="copy-yesterday-msg" class="small-txt" style="margin-top:8px"></div>
     </div>
 
@@ -893,7 +894,8 @@ function deleteEntryWithUndo(dayKeyStr,entryId,rerender){
 }
 function allFoods(){return state.customFoods.concat(CATALOG);}
 function findFood(id){var f=allFoods().filter(function(x){return x.id===id;});return f[0]||null;}
-function totals(k){var d=day(k),t={kcal:0,p:0,c:0,f:0,fiber:0,burned:0};d.entries.forEach(function(e){t.kcal+=e.kcal*e.servings;t.p+=e.p*e.servings;t.c+=e.c*e.servings;t.f+=e.f*e.servings;t.fiber+=e.fiber*e.servings;});d.activity.forEach(function(a){t.burned+=a.kcal;});return t;}
+function entryFactor(e){if(e&&e.grams!=null&&e.servingGrams){return e.grams/e.servingGrams;}return (e&&e.servings!=null)?e.servings:1;}
+function totals(k){var d=day(k),t={kcal:0,p:0,c:0,f:0,fiber:0,burned:0};d.entries.forEach(function(e){var fc=entryFactor(e);t.kcal+=e.kcal*fc;t.p+=e.p*fc;t.c+=e.c*fc;t.f+=e.f*fc;t.fiber+=e.fiber*fc;});d.activity.forEach(function(a){t.burned+=a.kcal;});return t;}
 function fmtServ(n){return String(Math.round(n*100)/100);}
 function roundServ(n){return Math.round(n*100)/100;}
 function logFood(food,meal,servings,k){
@@ -910,6 +912,12 @@ function entryGrams(e){
 /* ================= Batch 1: Saved meals, Copy yesterday, Quick Add ================= */
 function prevDayKey(k){
  var d=parseDayKey(k);d.setDate(d.getDate()-1);return dayKey(d);
+}
+var copyStatusDayKey=null;
+function copySourceText(){var d=new Date(viewDate);d.setDate(d.getDate()-1);return "Copies from "+d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
+function syncCopyUi(){
+ var hint=document.getElementById("copy-yesterday-hint");if(hint)hint.textContent=copySourceText();
+ if(copyStatusDayKey&&copyStatusDayKey!==dayKey(viewDate)){copyStatusDayKey=null;var m=document.getElementById("copy-yesterday-msg");if(m)m.innerHTML="";}
 }
 function cloneEntryToDay(e,targetKey,mealOverride){
  var td=day(targetKey);
@@ -935,10 +943,11 @@ function copyYesterdayAll(){
  var targetK=dayKey(viewDate),sourceK=prevDayKey(targetK);
  var src=(state.days[sourceK]||{}).entries||[];
  var msg=document.getElementById("copy-yesterday-msg");
- if(!src.length){var t1="Nothing logged yesterday to copy.";toast(t1);if(msg)msg.innerHTML='<span class="muted">'+esc(t1)+'</span>';return 0;}
+ if(!src.length){var t1="Nothing logged yesterday to copy.";copyStatusDayKey=targetK;toast(t1);if(msg)msg.innerHTML='<span class="muted">'+esc(t1)+'</span>';return 0;}
  src.forEach(function(e){cloneEntryToDay(e,targetK);});
  save();renderToday();
  var msgEl=document.getElementById("copy-yesterday-msg");
+ copyStatusDayKey=targetK;
  var txt="Copied "+src.length+" food"+(src.length===1?"":"s")+" from yesterday — added to this day.";
  toast(txt);if(msgEl)msgEl.innerHTML='<span class="ok-msg">'+esc(txt)+'</span>';
  return src.length;
@@ -949,7 +958,7 @@ function openSaveMeal(mealKey){
  var es=d.entries.filter(function(e){return e.meal===mealKey;});
  if(!es.length){toast("Log at least one food in "+(mealNames[mealKey]||mealKey)+" first, then save the meal.");return;}
  pendingSaveMealKey=mealKey;
- var total=es.reduce(function(s,e){return s+e.kcal*e.servings;},0);
+ var total=es.reduce(function(s,e){return s+e.kcal*entryFactor(e);},0);
  var sum=document.getElementById("sm-summary");
  if(sum)sum.textContent=(mealNames[mealKey]||mealKey)+" · "+es.length+" food"+(es.length===1?"":"s")+" · "+fmt(total)+" kcal — "+es.map(function(e){return e.name;}).join(", ");
  var nameEl=document.getElementById("sm-name");
@@ -977,7 +986,7 @@ function saveCurrentMealAsSaved(){
  if(document.getElementById("view-today").classList.contains("active"))renderToday();
  toast("Saved meal “"+name+"”.");
 }
-function savedMealKcal(sm){return (sm.entries||[]).reduce(function(s,e){return s+(e.kcal||0)*(e.servings||1);},0);}
+function savedMealKcal(sm){return (sm.entries||[]).reduce(function(s,e){return s+(e.kcal||0)*entryFactor(e);},0);}
 function logSavedMeal(id){
  var sm=(state.savedMeals||[]).filter(function(x){return x.id===id;})[0];
  if(!sm||!(sm.entries||[]).length){toast("That saved meal is empty.");return;}
@@ -1064,6 +1073,7 @@ function renderToday(){
  var lbl=viewDate.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
  if(dayKey(viewDate)===dayKey(new Date()))lbl+=" · Today";
  document.getElementById("date-label").textContent=lbl;
+ syncCopyUi();
  document.getElementById("today-key-area").innerHTML=(state.apiKey||state.backupApiKey)
   ?'<div class="strip-ok">✓ AI key saved — AI fill-in and label scan are on.</div>'
   :'<div class="banner-amber"><h2>Add your Google AI Studio API key</h2><p class="small-txt" style="margin:0 0 10px">It powers the AI fill-in and label photo scan in Foods. Free from Google — takes about a minute. Everything else already works without it.</p><button class="primary" data-go="settings" style="width:100%">Go to Settings — add API key</button></div>';
@@ -1078,14 +1088,15 @@ function renderToday(){
  document.getElementById("macro-grid").innerHTML=macros.map(function(m){return '<div><div class="num">'+fmt(m[1])+'<span class="muted" style="font-size:.8rem">/'+fmt(m[2])+m[3]+'</span></div><div class="muted small-txt">'+m[0]+'</div><div class="bar-track" style="margin-top:4px"><div class="bar-fill'+(m[1]>m[2]?" over":"")+'" style="width:'+Math.min(100,m[2]?m[1]/m[2]*100:0)+'%"></div></div></div>';}).join("");
  /* meals */
  var cm=currentMeal();
+ var copyHint=copySourceText();
  document.getElementById("meal-blocks").innerHTML=MEALS.map(function(m){
    var es=d.entries.filter(function(e){return e.meal===m[0];});
-   var sub=es.reduce(function(s,e){return s+e.kcal*e.servings;},0);
+   var sub=es.reduce(function(s,e){return s+e.kcal*entryFactor(e);},0);
    var rows=es.map(function(e){
      var eg=entryGrams(e);
-     return '<div class="entry"><div class="info"><div class="name">'+esc(e.name)+' <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span></div><div class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*e.servings)+' kcal · P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</div></div><div class="stepper"><button data-step="-0.5" data-eid="'+e.id+'" aria-label="Reduce servings">−</button><span class="val">'+fmtServ(e.servings)+'</span><button data-step="0.5" data-eid="'+e.id+'" aria-label="Add servings">+</button></div><div class="entry-btns"><button class="icon-btn" data-editentry="'+e.id+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-delentry="'+e.id+'" aria-label="Remove '+esc(e.name)+'">✕</button></div></div>';
+     return '<div class="entry"><div class="info"><div class="name">'+esc(e.name)+' <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span></div><div class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*entryFactor(e))+' kcal · P '+r1(e.p*entryFactor(e))+' · C '+r1(e.c*entryFactor(e))+' · F '+r1(e.f*entryFactor(e))+'</div></div><div class="stepper"><button data-step="-0.5" data-eid="'+e.id+'" aria-label="Reduce servings">−</button><span class="val">'+fmtServ(e.servings)+'</span><button data-step="0.5" data-eid="'+e.id+'" aria-label="Add servings">+</button></div><div class="entry-btns"><button class="icon-btn" data-editentry="'+e.id+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-delentry="'+e.id+'" aria-label="Remove '+esc(e.name)+'">✕</button></div></div>';
    }).join("");
-   return '<div class="meal-block"><div class="meal-head"><span class="t">'+m[1]+(m[0]===cm&&dayKey(viewDate)===dayKey(new Date())?' <span class="muted small-txt">· current meal</span>':"")+'</span><span class="muted small-txt">'+fmt(sub)+' kcal</span></div>'+(rows||'<div class="entry"><span class="muted small-txt">Nothing logged yet.</span></div>')+'<div class="meal-actions"><button class="small" data-addmeal="'+m[0]+'">+ Add food</button><button class="small" data-copymeal="'+m[0]+'">📋 Copy yesterday\'s '+mealNames[m[0]]+'</button><button class="small" data-savemeal="'+m[0]+'">🍱 Save this meal</button></div></div>';
+   return '<div class="meal-block"><div class="meal-head"><span class="t">'+m[1]+(m[0]===cm&&dayKey(viewDate)===dayKey(new Date())?' <span class="muted small-txt">· current meal</span>':"")+'</span><span class="muted small-txt">'+fmt(sub)+' kcal</span></div>'+(rows||'<div class="entry"><span class="muted small-txt">Nothing logged yet.</span></div>')+'<div class="meal-actions"><button class="small" data-addmeal="'+m[0]+'">+ Add food</button><button class="small" data-copymeal="'+m[0]+'">📋 Copy yesterday\'s '+mealNames[m[0]]+'</button><button class="small" data-savemeal="'+m[0]+'">🍱 Save this meal</button><div class="muted small-txt" style="flex-basis:100%">'+copyHint+'</div></div></div>';
  }).join("");
  document.querySelectorAll("[data-copymeal]").forEach(function(b){b.addEventListener("click",function(){copyYesterdayMeal(b.getAttribute("data-copymeal"));});});
  document.querySelectorAll("[data-savemeal]").forEach(function(b){b.addEventListener("click",function(){openSaveMeal(b.getAttribute("data-savemeal"));});});
@@ -1119,7 +1130,7 @@ function renderToday(){
  var tp=[["Calories",t.kcal,tg.calories,"kcal"],["Protein",t.p,tg.protein,"g"],["Carbs",t.c,tg.carbs,"g"],["Fat",t.f,tg.fat,"g"],["Fiber",t.fiber,tg.fiber,"g"],["Water",d.waterOz,tg.water,"oz"]];
  document.getElementById("targets-panel").innerHTML=tp.map(function(x){return '<div style="margin-bottom:10px"><div class="row"><span class="grow small-txt"><strong>'+x[0]+'</strong></span><span class="small-txt muted">'+fmt(x[1])+' / '+fmt(x[2])+' '+x[3]+'</span></div><div class="bar-track"><div class="bar-fill'+(x[1]>x[2]?" over":"")+'" style="width:'+Math.min(100,x[2]?x[1]/x[2]*100:0)+'%"></div></div></div>';}).join("");
  /* store bars */
- var byStore={};d.entries.forEach(function(e){byStore[e.store]=(byStore[e.store]||0)+e.kcal*e.servings;});
+ var byStore={};d.entries.forEach(function(e){byStore[e.store]=(byStore[e.store]||0)+e.kcal*entryFactor(e);});
  var skeys=Object.keys(byStore);
  if(skeys.length){var mx=Math.max.apply(null,skeys.map(function(s){return byStore[s];}));
    document.getElementById("store-bars").innerHTML=skeys.sort(function(a,b){return byStore[b]-byStore[a];}).map(function(s){return '<div style="margin-bottom:10px"><div class="row"><span class="grow small-txt"><span class="badge '+((STORES[s]||{}).cls||"custom")+'">'+esc((STORES[s]||{}).name||"Custom")+'</span></span><span class="small-txt muted">'+fmt(byStore[s])+' kcal</span></div><div class="bar-track"><div class="bar-fill" style="width:'+(byStore[s]/mx*100)+'%"></div></div></div>';}).join("");
@@ -1145,7 +1156,7 @@ function renderRecent(el){
  if(!rec.length){el.innerHTML='<p class="muted small-txt" style="margin:4px 0">Nothing here yet — foods you log will show up for one-tap re-logging.</p>';return;}
  el.innerHTML=rec.map(function(e,i){
    var eg=entryGrams(e);
-   return '<div class="row" style="border-top:1px solid var(--line);padding:6px 0"><button class="recent-row" data-rec="'+i+'" style="border:none;padding:4px 0"><span class="grow"><strong>'+esc(e.name)+'</strong> <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span><br><span class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*e.servings)+' kcal · P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</span></span></button><button class="plus-btn" data-recplus="'+i+'" aria-label="Log '+esc(e.name)+' again">+</button></div>';
+   return '<div class="row" style="border-top:1px solid var(--line);padding:6px 0"><button class="recent-row" data-rec="'+i+'" style="border:none;padding:4px 0"><span class="grow"><strong>'+esc(e.name)+'</strong> <span class="badge '+((STORES[e.store]||{}).cls||"custom")+'">'+esc((STORES[e.store]||{}).name||"Custom")+'</span><br><span class="muted small-txt">'+esc(e.serving)+(eg.g!=null?' · <strong>'+eg.g+' g</strong>':"")+' · '+fmt(e.kcal*entryFactor(e))+' kcal · P '+r1(e.p*entryFactor(e))+' · C '+r1(e.c*entryFactor(e))+' · F '+r1(e.f*entryFactor(e))+'</span></span></button><button class="plus-btn" data-recplus="'+i+'" aria-label="Log '+esc(e.name)+' again">+</button></div>';
  }).join("");
  el.querySelectorAll("[data-recplus]").forEach(function(b){b.addEventListener("click",function(){
    var e=rec[parseInt(b.getAttribute("data-recplus"),10)];
@@ -1177,22 +1188,27 @@ document.getElementById("act-add").addEventListener("click",function(){
 });
 
 /* ================= Adjuster modal ================= */
-var adjFood=null,adjServ=1;
+var adjFood=null,adjServ=1,adjExactServ=null,adjGramsExact=null;
+function adjFactor(){return adjExactServ!=null?adjExactServ:adjServ;}
+function setServInputRounded(){var s=document.getElementById("adj-serv-input");if(!s)return;var v=fmtServ(adjServ);s.value=v;try{s.setAttribute("value",v);}catch(e){}}
+function clearAdjExact(){adjExactServ=null;adjGramsExact=null;}
 var editEntryId=null,editDayKey=null;
 function resetEditState(){editEntryId=null;editDayKey=null;var b=document.getElementById("adj-add");if(b)b.textContent="Add to day";}
 function updAdjPreview(){
  if(!adjFood)return;
+ var fc=adjFactor();
  document.getElementById("adj-val").textContent=fmtServ(adjServ);
  var sIn=document.getElementById("adj-serv-input");
- if(sIn&&document.activeElement!==sIn)sIn.value=fmtServ(adjServ);
+ if(sIn&&document.activeElement!==sIn){sIn.value=fmtServ(adjServ);try{sIn.setAttribute("value",fmtServ(adjServ));}catch(e){}}
  document.querySelectorAll("[data-servchip]").forEach(function(ch){ch.classList.toggle("on",Math.abs(parseFloat(ch.getAttribute("data-servchip"))-adjServ)<0.001);});
  var gIn=document.getElementById("adj-grams");
- if(adjFood.grams){gIn.value=Math.round(adjServ*adjFood.grams);}
- document.getElementById("adj-preview").innerHTML="<strong>"+fmtServ(adjServ)+" servings</strong>"+(adjFood.grams?" · <strong>"+Math.round(adjServ*adjFood.grams)+" g</strong>":"")+" → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
+ var gDisp=adjGramsExact!=null?adjGramsExact:(adjFood.grams?Math.round(adjServ*adjFood.grams):null);
+ if(adjFood.grams){gIn.value=gDisp;}
+ document.getElementById("adj-preview").innerHTML="<strong>"+fmtServ(adjServ)+" servings</strong>"+(adjFood.grams?" · <strong>"+gDisp+" g</strong>":"")+" → <strong>"+fmt(adjFood.kcal*fc)+" kcal</strong> · P "+r1(adjFood.p*fc)+" · C "+r1(adjFood.c*fc)+" · F "+r1(adjFood.f*fc)+" · Fiber "+r1((adjFood.fiber||0)*fc);
 }
 function openAdjust(food,meal){
  resetEditState();
- adjFood=food;adjServ=1;
+ adjFood=food;adjServ=1;clearAdjExact();
  document.getElementById("adj-title").textContent=food.name;
  document.getElementById("adj-nut").textContent=food.serving+(food.grams?" ("+food.grams+" g)":"")+" · "+fmt(food.kcal)+" kcal · P "+r1(food.p)+" · C "+r1(food.c)+" · F "+r1(food.f)+(food.src==="ai"?" · AI estimate":"");
  document.getElementById("adj-grams-row").style.display=food.grams?"block":"none";
@@ -1203,8 +1219,7 @@ function openAdjust(food,meal){
    gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
-     adjServ=roundServ(g/adjFood.grams);document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
-     document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
+     document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
    });});
  }
  var si=document.getElementById("adj-serv-input");if(si)si.value="1";
@@ -1226,10 +1241,11 @@ function openAdjustForEdit(entry,dayKeyStr){
    gc.innerHTML=food.grams?'<span class="muted small-txt" style="align-self:center">Quick grams:</span><button type="button" class="serv-chip" data-gramchip="50">50 g</button><button type="button" class="serv-chip" data-gramchip="100">100 g</button>':"";
    gc.querySelectorAll("[data-gramchip]").forEach(function(b){b.addEventListener("click",function(){
      var g=parseFloat(b.getAttribute("data-gramchip"));if(!adjFood||!adjFood.grams||!g)return;
-     adjServ=roundServ(g/adjFood.grams);document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
+     document.getElementById("adj-grams").value=g;updAdjPreviewFromGrams(g);
    });});
  }
- var si2=document.getElementById("adj-serv-input");if(si2)si2.value=fmtServ(adjServ);
+ if(eg.g!=null&&eg.sg){adjGramsExact=eg.g;adjExactServ=eg.g/eg.sg;}else{clearAdjExact();}
+ var si2=document.getElementById("adj-serv-input");if(si2){si2.value=fmtServ(adjServ);try{si2.setAttribute("value",fmtServ(adjServ));}catch(e){}}
  var addBtn=document.getElementById("adj-add");if(addBtn)addBtn.textContent="Save changes";
  updAdjPreview();
  if(food.grams&&eg.g!=null){document.getElementById("adj-grams").value=eg.g;}
@@ -1245,14 +1261,14 @@ function adjGramsChanged(){
 document.getElementById("adj-grams").addEventListener("input",adjGramsChanged);
 document.getElementById("adj-grams").addEventListener("change",adjGramsChanged);
 document.querySelectorAll("[data-servchip]").forEach(function(b){b.addEventListener("click",function(){
- var v=parseFloat(b.getAttribute("data-servchip"));if(!v||v<=0)return;adjServ=v;updAdjPreview();
+ var v=parseFloat(b.getAttribute("data-servchip"));if(!v||v<=0)return;adjServ=v;clearAdjExact();updAdjPreview();
 });});
 var _adjServInput=document.getElementById("adj-serv-input");
 if(_adjServInput){
  var _onServInput=function(){
    var v=parseFloat(_adjServInput.value);
    if(!v||v<=0)return;
-   adjServ=roundServ(v);
+   adjServ=roundServ(v);clearAdjExact();
    /* Update preview without overwriting the field being typed in */
    document.getElementById("adj-val").textContent=fmtServ(adjServ);
    if(adjFood){
@@ -1262,20 +1278,25 @@ if(_adjServInput){
    }
  };
  _adjServInput.addEventListener("input",_onServInput);
- _adjServInput.addEventListener("change",function(){var v=parseFloat(_adjServInput.value);if(v>0){adjServ=roundServ(v);updAdjPreview();}});
+ _adjServInput.addEventListener("change",function(){var v=parseFloat(_adjServInput.value);if(v>0){adjServ=roundServ(v);clearAdjExact();updAdjPreview();setServInputRounded();}});
 }
 function updAdjPreviewFromGrams(g){
+ /* Grams are exact: the servings input shows/stores the 2-decimal rounded number,
+    but kcal/macros are computed from the exact gram amount. The servings input
+    value is set unconditionally so its underlying value is the clean rounded number. */
+ adjGramsExact=g;adjExactServ=g/adjFood.grams;adjServ=roundServ(adjExactServ);
  document.getElementById("adj-val").textContent=fmtServ(adjServ);
- var sIn2=document.getElementById("adj-serv-input");if(sIn2&&document.activeElement!==sIn2)sIn2.value=fmtServ(adjServ);
+ setServInputRounded();
  document.querySelectorAll("[data-servchip]").forEach(function(ch){ch.classList.toggle("on",Math.abs(parseFloat(ch.getAttribute("data-servchip"))-adjServ)<0.001);});
- document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*adjServ)+" kcal</strong> · P "+r1(adjFood.p*adjServ)+" · C "+r1(adjFood.c*adjServ)+" · F "+r1(adjFood.f*adjServ)+" · Fiber "+r1((adjFood.fiber||0)*adjServ);
+ var fc=adjExactServ;
+ document.getElementById("adj-preview").innerHTML="<strong>"+g+" g</strong> = <strong>"+fmtServ(adjServ)+" servings</strong> → <strong>"+fmt(adjFood.kcal*fc)+" kcal</strong> · P "+r1(adjFood.p*fc)+" · C "+r1(adjFood.c*fc)+" · F "+r1(adjFood.f*fc)+" · Fiber "+r1((adjFood.fiber||0)*fc);
 }
-document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,roundServ(adjServ-0.5));updAdjPreview();});
-document.getElementById("adj-plus").addEventListener("click",function(){adjServ=roundServ(adjServ+0.5);updAdjPreview();});
+document.getElementById("adj-minus").addEventListener("click",function(){adjServ=Math.max(0.5,roundServ(adjServ-0.5));clearAdjExact();updAdjPreview();});
+document.getElementById("adj-plus").addEventListener("click",function(){adjServ=roundServ(adjServ+0.5);clearAdjExact();updAdjPreview();});
 document.getElementById("adj-cancel").addEventListener("click",function(){document.getElementById("adjust-modal").classList.remove("open");resetEditState();});
 document.getElementById("adj-add").addEventListener("click",function(){
  if(!adjFood)return;
- if(adjFood.grams){var g=parseFloat(document.getElementById("adj-grams").value);if(g>0)adjServ=roundServ(g/adjFood.grams);}
+ if(adjFood.grams){var g=parseFloat(document.getElementById("adj-grams").value);if(g>0){adjServ=roundServ(g/adjFood.grams);adjGramsExact=g;adjExactServ=g/adjFood.grams;setServInputRounded();}}
  var meal=document.getElementById("adj-meal").value;
  if(editEntryId&&editDayKey){
    var ed=day(editDayKey);var ent=null;for(var i=0;i<ed.entries.length;i++){if(ed.entries[i].id===editEntryId)ent=ed.entries[i];}
@@ -1283,7 +1304,7 @@ document.getElementById("adj-add").addEventListener("click",function(){
      ent.servings=roundServ(adjServ);
      ent.meal=meal;
      var sgE=entryGrams(ent).sg||adjFood.grams||null;
-     if(sgE){ent.servingGrams=sgE;ent.grams=Math.round(ent.servings*sgE);}
+     if(sgE){ent.servingGrams=sgE;ent.grams=adjGramsExact!=null?adjGramsExact:Math.round(ent.servings*sgE);}
      save();
      var ename=ent.name;var savedDayKey=editDayKey;
      document.getElementById("adjust-modal").classList.remove("open");resetEditState();
@@ -1299,6 +1320,7 @@ document.getElementById("adj-add").addEventListener("click",function(){
    resetEditState();
  }
  logFood(adjFood,meal,adjServ,dayKey(viewDate));
+ if(adjGramsExact!=null&&adjFood.grams){var _td=day(dayKey(viewDate));var _last=_td.entries[_td.entries.length-1];if(_last){_last.grams=adjGramsExact;_last.servingGrams=adjFood.grams;save();}}
  document.getElementById("adjust-modal").classList.remove("open");toast("Added "+adjFood.name+" to "+mealNames[meal]);
  if(document.getElementById("view-today").classList.contains("active"))renderToday();
 });
@@ -1616,11 +1638,11 @@ function renderLog(){
    var mealSections=MEALS.map(function(m){
      var es=d.entries.filter(function(e){return e.meal===m[0];});
      if(!es.length)return "";
-     var sub=es.reduce(function(s,e){return s+e.kcal*e.servings;},0);
+     var sub=es.reduce(function(s,e){return s+e.kcal*entryFactor(e);},0);
      var rows=es.map(function(e){
        var eg=entryGrams(e);
        var amt=eg.g!=null?eg.g+" g":fmtServ(e.servings)+" × "+esc(e.serving);
-       return '<div class="log-entry"><span class="grow" style="min-width:0"><strong>'+esc(e.name)+'</strong><br><span class="muted small-txt">'+amt+' · '+esc(e.serving)+'</span></span><span style="text-align:right;flex:none"><strong>'+fmt(e.kcal*e.servings)+' kcal</strong><br><span class="muted small-txt">P '+r1(e.p*e.servings)+' · C '+r1(e.c*e.servings)+' · F '+r1(e.f*e.servings)+'</span></span><span class="log-entry-btns"><button class="icon-btn" data-logedit="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-logdel="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Remove '+esc(e.name)+'">✕</button></span></div>';
+       return '<div class="log-entry"><span class="grow" style="min-width:0"><strong>'+esc(e.name)+'</strong><br><span class="muted small-txt">'+amt+' · '+esc(e.serving)+'</span></span><span style="text-align:right;flex:none"><strong>'+fmt(e.kcal*entryFactor(e))+' kcal</strong><br><span class="muted small-txt">P '+r1(e.p*entryFactor(e))+' · C '+r1(e.c*entryFactor(e))+' · F '+r1(e.f*entryFactor(e))+'</span></span><span class="log-entry-btns"><button class="icon-btn" data-logedit="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Edit '+esc(e.name)+'">✎</button><button class="icon-btn del" data-logdel="'+e.id+'" data-logday="'+esc(k)+'" aria-label="Remove '+esc(e.name)+'">✕</button></span></div>';
      }).join("");
      return '<div class="log-meal-title"><span>'+m[1]+'</span><span class="muted">'+fmt(sub)+' kcal</span></div>'+rows;
    }).join("");
