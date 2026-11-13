@@ -6,4 +6,17 @@ Free calorie counter that runs entirely in your browser. Log food, water, weight
 - Open `index.html` in any browser, or add it to your phone's home screen to use it like an app.
 - Type the grams you ate and nutrition scales automatically from the serving size.
 
-Built with Muse. Testing now — it joins Velazquez Lab later.
+Built with Muse. Live on Velazquez Lab.
+
+**Live:** https://crtghoul.github.io/markettrack/
+
+---
+
+## Velazquez Lab
+
+More free tools from Cesar Velazquez: [Velazquez Lab](https://velazquez-lab.pages.dev)
+
+- GitHub: https://github.com/crtGhoul
+- Codeberg: https://codeberg.org/crtGhoul
+- YouTube: https://www.youtube.com/@VelazquezLabs
+- Reddit: https://www.reddit.com/user/Manteqaada/
