@@ -86,11 +86,20 @@ main{max-width:760px;margin:0 auto;padding:12px 14px 24px}
 .recent-row{display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:none;border-top:1px solid var(--line);border-radius:0;padding:10px 4px;background:transparent;font-weight:400}
 .recent-row:first-of-type{border-top:none}
 .plus-btn{width:44px;height:44px;min-width:44px;border-radius:50%;background:var(--green);color:#fff;border:none;font-size:1.3rem;padding:0;flex:none}
-/* Bottom nav: fixed to the viewport bottom. The translate3d/backface-visibility
-   pair promotes it to its own compositing layer — without it, iOS Safari paints
-   the bar as part of the page during scroll, so it lags behind and renders
-   mid-screen with page content flowing underneath it (user screenshot, Nov 11). */
-nav.bottom{position:fixed;left:0;right:0;top:auto;bottom:0;width:100%;height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+/* Bottom nav: fixed to the viewport bottom. A transform, filter or
+   perspective on an ancestor (html/body — the nav is a direct child of
+   body) would turn position:fixed into page-relative positioning on iOS
+   Safari, so the bar would scroll with the page and render mid-screen
+   with content flowing underneath and below it (user screenshots,
+   Nov 11 & Nov 13). Nothing in this stylesheet or the script sets one —
+   checked — and the rule below pins that down explicitly so no future
+   style can silently break the pin. The nav itself stays on its own
+   compositing layer, and a small script at the end of the page also
+   re-pins it to the visual viewport on every scroll/resize, because
+   iOS standalone (home-screen) mode can still drift a fixed bar when
+   the layout and visual viewports disagree. */
+html,body{transform:none;filter:none;-webkit-filter:none;perspective:none}
+nav.bottom{position:fixed;left:0;right:0;top:auto;bottom:0;width:100%;height:calc(var(--nav-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60;-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0);-webkit-backface-visibility:hidden;backface-visibility:hidden;will-change:transform}
 nav.bottom button{flex:1 1 0;min-width:0;border:none;background:transparent;border-radius:0;font-size:.78rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--muted);position:relative;padding:4px;white-space:nowrap;overflow:hidden}
 nav.bottom button .ic{font-size:1.25rem;line-height:1}
 nav.bottom button.on{color:var(--green);font-weight:800}
@@ -102,6 +111,12 @@ nav.bottom button .nav-lbl{white-space:nowrap;line-height:1.15}
 .ds-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
 #customs-drawer{z-index:70}
 .unit-badge{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--green-soft);border:1px solid var(--green);vertical-align:middle}
+/* Camera barcode scanner (v69) */
+#scan-modal{z-index:90}
+.scan-view{position:relative;background:#000;border-radius:14px;overflow:hidden}
+.scan-view video{width:100%;display:block;aspect-ratio:4/3;object-fit:cover;background:#000}
+.scan-frame{position:absolute;left:10%;right:10%;top:16%;bottom:16%;border:2px solid rgba(255,255,255,.9);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.scan-line{position:absolute;left:13%;right:13%;top:50%;height:2px;background:#e5484d;opacity:.85;pointer-events:none}
 .dot{position:absolute;top:6px;right:calc(50% - 22px);width:10px;height:10px;border-radius:50%;background:var(--amber-line);display:none}
 .dot.show{display:block}
 .sticky-done{position:sticky;top:0;z-index:50;background:var(--card);border-bottom:2px solid var(--green);padding:10px 0;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -524,10 +539,11 @@ textarea{resize:vertical}
       <label for="food-search">Search foods</label>
       <input id="food-search" type="search" placeholder="Try “chicken”, “yogurt”, “tortillas”…" autocomplete="off" aria-label="Search foods">
       <div class="row search-actions">
-        <button type="button" class="grow" id="go-barcode" aria-label="Go to the barcode lookup">📷 Barcode</button>
+        <button type="button" class="grow" id="go-scan" aria-label="Scan a barcode with the camera">📸 Scan barcode</button>
+        <button type="button" class="grow" id="go-barcode" aria-label="Go to the barcode lookup">⌨️ Barcode</button>
         <button type="button" class="grow" id="go-labelscan" aria-label="Scan a nutrition facts label">🏷️ Label scan</button>
       </div>
-      <p class="muted small-txt" style="margin:8px 0 0">Three ways to add a food: search above, look up a package barcode, or photograph a nutrition facts label.</p>
+      <p class="muted small-txt" style="margin:8px 0 0">Ways to add a food: search above, point your camera at a package barcode, type a barcode in the lookup below, or photograph a nutrition facts label.</p>
       <div class="row wrap" style="margin-top:10px" id="store-chips"></div>
       <div class="row wrap" style="margin-top:8px">
         <div class="grow" style="min-width:150px"><label for="cat-filter">Category</label>
@@ -604,6 +620,9 @@ textarea{resize:vertical}
     <div class="card" id="barcode-card">
       <button type="button" class="sec-toggle" data-sec-btn="barcode" aria-expanded="true"><span class="sec-title">Barcode lookup</span><span class="sec-chev" aria-hidden="true">▾</span></button>
       <div class="sec-body" data-sec-body="barcode">
+      <div class="row" style="margin-bottom:8px">
+        <button type="button" class="grow" id="scan-barcode-btn">📸 Scan barcode with camera</button>
+      </div>
       <div class="row">
         <input id="barcode-input" inputmode="numeric" placeholder="Type the barcode digits" aria-label="Barcode digits">
         <button class="primary" id="barcode-btn">Look up</button>
@@ -832,8 +851,10 @@ textarea{resize:vertical}
       <p class="small-txt" style="margin-top:0">Home-screen apps can show an old cached copy. Use Refresh to save everything first, then load the newest version.</p>
       <div class="row wrap" style="margin:10px 0">
         <span class="saved-pill" id="saved-settings"><span class="dot-live"></span><span id="saved-settings-txt">Saved ✓</span></span>
-        <span class="version-stamp">MarketTrack — updated Nov 12, 2026 · v67</span>
+        <span class="version-stamp">MarketTrack — updated Nov 14, 2026 · v69</span>
       </div>
+      <p class="small-txt" style="margin:0 0 10px"><strong>v69:</strong> Camera barcode scanner — tap “📸 Scan barcode” in Foods and point your phone camera at a package barcode; it looks the food up through the same Open Food Facts → USDA → offline-cache flow as typing the digits and opens the same meal-and-grams sheet. Uses the browser's built-in barcode reader where there is one, with a built-in fallback reader for iPhone Safari. No key or account needed — and if the camera can't open, typing the digits still works.</p>
+      <p class="small-txt" style="margin:0 0 10px"><strong>v68:</strong> Bottom nav re-pinned on iOS so it stays glued to the bottom while scrolling, and drafts now clear instantly when you save a food — no more Resume draft prompt for items already added.</p>
       <button class="primary refresh-btn" id="refresh-settings" type="button" style="width:100%;justify-content:center">↻ Refresh app — save &amp; load newest version</button>
       <p class="muted small-txt" style="margin:8px 0 0">This saves all your logs, keys, targets and foods to this browser right before it reloads, so nothing is lost.</p>
     </div>
@@ -1047,7 +1068,7 @@ textarea{resize:vertical}
         <button id="clear-data" style="color:var(--red)">Erase everything</button>
       </div>
       <div id="data-msg" style="margin-top:8px"></div>
-      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 12, 2026 · v67 · Browser version · Saves in this browser only</p>
+      <p class="version-stamp" style="margin-top:12px;text-align:center">MarketTrack — updated Nov 14, 2026 · v69 · Browser version · Saves in this browser only</p>
     </div>
 
     <button class="primary" data-go="today" style="width:100%;min-height:52px;font-size:1.05rem">Done — back to Today</button>
@@ -1226,6 +1247,19 @@ textarea{resize:vertical}
     </div>
     <div id="cd-msg" style="margin-top:8px"></div>
     <button id="cd-done" type="button" class="primary" style="width:100%;margin-top:12px">Done</button>
+  </div>
+</div>
+
+<div class="modal" id="scan-modal" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+  <div class="sheet">
+    <div class="row"><h2 id="scan-title" class="grow" style="margin:0">📸 Scan barcode</h2><button id="scan-close" type="button" aria-label="Close barcode scanner">✕</button></div>
+    <p class="muted small-txt" style="margin:8px 0 10px">Point the camera at the barcode on the package and hold it inside the frame. The food is looked up the moment the code is read — no typing, no key, no account.</p>
+    <div class="scan-view"><video id="scan-video" playsinline muted autoplay aria-label="Camera view for barcode scanning"></video><div class="scan-frame" aria-hidden="true"></div><div class="scan-line" aria-hidden="true"></div></div>
+    <canvas id="scan-canvas" style="display:none"></canvas>
+    <div id="scan-status" style="margin-top:10px" aria-live="polite"><p class="muted small-txt" style="margin:0">Starting the camera…</p></div>
+    <label for="scan-manual" style="margin-top:12px">Can't read it? Type the digits instead</label>
+    <div class="row"><input id="scan-manual" inputmode="numeric" placeholder="Barcode digits" aria-label="Barcode digits"><button class="primary" id="scan-manual-btn" type="button" style="flex:none">Look up</button></div>
+    <button id="scan-cancel" type="button" style="width:100%;margin-top:14px">Cancel</button>
   </div>
 </div>
 
@@ -2490,7 +2524,7 @@ document.getElementById("adj-add").addEventListener("click",function(){
      ent.meal=meal;
      var sgE=entryGrams(ent).sg||adjFood.grams||null;
      if(sgE){ent.servingGrams=sgE;ent.grams=adjGramsExact!=null?adjGramsExact:Math.round(ent.servings*sgE);}
-     save();
+     save();saveDraft("adjust",null);
      var ename=ent.name;var savedDayKey=editDayKey;
      document.getElementById("adjust-modal").classList.remove("open");resetEditState();
      toast("Updated "+ename+" — "+fmtServ(ent.servings)+" servings in "+(mealNames[meal]||meal));
@@ -2509,6 +2543,12 @@ document.getElementById("adj-add").addEventListener("click",function(){
  if(adjSaveFood){savedToIndex=ensureFoodInIndex(adjFood);adjSaveFood=null;}
  logFood(adjFood,meal,adjServ,dayKey(viewDate));
  if(adjGramsExact!=null&&adjFood.grams){var _td=day(dayKey(viewDate));var _last=_td.entries[_td.entries.length-1];if(_last){_last.grams=adjGramsExact;_last.servingGrams=adjFood.grams;save();}}
+ /* Saved and logged — clear the drafts synchronously, before the modal
+    closes and before the 1.5 s capture tick or a reload can resurrect
+    them. The custom draft is cleared too: a label-scanned food reaches
+    this same confirm from the custom form, and its form draft is this
+    same item. */
+ saveDraft("adjust",null);saveDraft("custom",null);
  document.getElementById("adjust-modal").classList.remove("open");
  if(savedToIndex){toast("Saved "+adjFood.name+" to your index and added to "+mealNames[meal]);try{filterFoods();}catch(e){}}
  else toast("Added "+adjFood.name+" to "+mealNames[meal]);
@@ -2977,28 +3017,273 @@ function gtinMatches(gtin,code){
  var a=String(gtin).replace(/\D/g,"").replace(/^0+/,""),b=String(code).replace(/\D/g,"").replace(/^0+/,"");
  return a&&b&&a===b;
 }
-function barcodeUsdaFallback(code,el,offMsg){
- if(!state.usdaApiKey){el.innerHTML='<p class="err">'+esc(offMsg)+'</p><p class="muted small-txt">Add a USDA key in Settings for more US branded results — USDA can also be checked by barcode.</p>';return;}
+function barcodeUsdaFallback(code,el,offMsg,onFail){
+ if(!state.usdaApiKey){if(onFail){onFail(el);return;}el.innerHTML='<p class="err">'+esc(offMsg)+'</p><p class="muted small-txt">Add a USDA key in Settings for more US branded results — USDA can also be checked by barcode.</p>';return;}
  el.innerHTML='<p class="muted small-txt">Not in Open Food Facts — checking USDA by barcode…</p>';
  searchUsda(code).then(function(list){
    var exact=list.filter(function(f){return gtinMatches(f.gtin,code);});
    var hit=exact.length?exact:[];
    if(hit.length){hit.forEach(function(f){cacheBarcode(code,f);});showUsda(hit,el);}
+   else if(onFail){onFail(el);}
    else {el.innerHTML='<p class="err">That barcode was not found in Open Food Facts or USDA.</p>';}
- }).catch(function(){el.innerHTML='<p class="err">That barcode was not found in Open Food Facts, and USDA could not be checked.</p>';});
+ }).catch(function(){if(onFail){onFail(el);}else{el.innerHTML='<p class="err">That barcode was not found in Open Food Facts, and USDA could not be checked.</p>';}});
 }
-document.getElementById("barcode-btn").addEventListener("click",function(){
- var code=document.getElementById("barcode-input").value.replace(/\D/g,""),el=document.getElementById("barcode-result");
+/* The one barcode lookup flow, shared by the typed digits and the camera
+   scanner: offline cache first, then Open Food Facts, then the USDA
+   fallback. Results render into #barcode-result and their Log buttons
+   open the same unified found-food sheet (meal + grams) as always. With
+   fromScan set, a not-found/offline ending shows the same “Offline or no
+   match — add as Custom Food” prompt the search no-match path shows,
+   with the one-tap pre-filled Custom Food form. */
+function lookupBarcode(code,fromScan){
+ var el=document.getElementById("barcode-result");
  if(code.length<8){el.innerHTML='<p class="err">Type at least 8 digits from the barcode.</p>';return;}
  var cached=getCachedBarcode(code);
  if(cached){showCachedBarcode(cached,el);toast("That barcode is in your offline cache.");return;}
  el.innerHTML='<p class="muted small-txt">Looking up…</p>';
+ var onFail=fromScan?function(e2){e2.innerHTML=offNoMatchHtml(code);}:null;
  fetch("https://world.openfoodfacts.org/api/v2/product/"+code+".json")
   .then(function(r){return r.json();}).then(function(j){
-    if(j.status!==1||!j.product){barcodeUsdaFallback(code,el,"That barcode is not in the food database yet");return;}
+    if(j.status!==1||!j.product){barcodeUsdaFallback(code,el,"That barcode is not in the food database yet",onFail);return;}
     var f=offFood(j.product);cacheBarcode(code,f);showOff([f],el);
-  }).catch(function(){barcodeUsdaFallback(code,el,"Barcode lookup needs an internet connection.");});
+  }).catch(function(){barcodeUsdaFallback(code,el,"Barcode lookup needs an internet connection.",onFail);});
+}
+document.getElementById("barcode-btn").addEventListener("click",function(){
+ var code=document.getElementById("barcode-input").value.replace(/\D/g,"");
+ lookupBarcode(code,false);
 });
+
+/* ================= Camera barcode scanner (v69) =================
+   Rear-camera live scanning with zero keys, accounts or libraries.
+   Where the browser ships the built-in BarcodeDetector (Chrome/Android)
+   it does the reading; everywhere else — notably iPhone Safari, which
+   has no BarcodeDetector — a small built-in EAN-13 / UPC-A / EAN-8
+   decoder reads the code straight from the camera frames. Decoded codes
+   are checksum-verified and must be read twice in a row by the fallback
+   decoder before they are accepted, then they go through lookupBarcode
+   above, exactly like typed digits. */
+var scanStream=null,scanTimer=null,scanDetector=null,scanActive=false,scanHits={};
+function scanScrollBehavior(){return (window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)?"auto":"smooth";}
+function closeBarcodeScanner(){
+ scanActive=false;
+ if(scanTimer){clearTimeout(scanTimer);scanTimer=null;}
+ if(scanStream){scanStream.getTracks().forEach(function(t){try{t.stop();}catch(e){}});scanStream=null;}
+ var v=document.getElementById("scan-video");if(v){try{v.pause();}catch(e){}v.srcObject=null;}
+ var m=document.getElementById("scan-modal");if(m)m.classList.remove("open");
+}
+function showBarcodeCard(){
+ setSection("barcode",false);
+ var card=document.getElementById("barcode-card");
+ if(card)card.scrollIntoView({behavior:scanScrollBehavior(),block:"start"});
+}
+function finishScanWithCode(code){
+ closeBarcodeScanner();
+ showBarcodeCard();
+ var inp=document.getElementById("barcode-input");if(inp)inp.value=code;
+ var man=document.getElementById("scan-manual");if(man)man.value="";
+ toast("Barcode read: "+code);
+ lookupBarcode(code,true);
+}
+function scanFail(msg){
+ closeBarcodeScanner();
+ showBarcodeCard();
+ var el=document.getElementById("barcode-result");
+ el.innerHTML='<p class="err">'+esc(msg)+'</p><p class="muted small-txt">No problem — type the barcode digits in the box above and tap Look up instead.</p>';
+ var inp=document.getElementById("barcode-input");
+ if(inp)setTimeout(function(){try{inp.focus({preventScroll:true});}catch(e){inp.focus();}},450);
+}
+function openBarcodeScanner(){
+ var status=document.getElementById("scan-status");
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+  scanFail("Camera scanning isn't available in this browser — it needs a secure (https) page and a browser that allows camera access.");
+  return;
+ }
+ document.getElementById("scan-modal").classList.add("open");
+ if(status)status.innerHTML='<p class="muted small-txt" style="margin:0">Starting the camera…</p>';
+ var man=document.getElementById("scan-manual");if(man)man.value="";
+ scanActive=true;scanHits={};scanDetector=null;
+ var video=document.getElementById("scan-video");
+ navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}).then(function(stream){
+  if(!scanActive){stream.getTracks().forEach(function(t){try{t.stop();}catch(e){}});return;}
+  scanStream=stream;video.srcObject=stream;
+  var p=video.play();if(p&&p.catch)p.catch(function(){});
+  if(status)status.innerHTML='<p class="muted small-txt" style="margin:0">Camera on — hold the barcode inside the frame, a few inches from the package, and keep it steady.</p>';
+  startScanLoop();
+ }).catch(function(err){
+  var msg="The camera couldn't be opened.";
+  if(err&&(err.name==="NotAllowedError"||err.name==="SecurityError"))msg="Camera permission was denied. Allow camera access for this site in your browser settings, or type the barcode instead.";
+  else if(err&&(err.name==="NotFoundError"||err.name==="OverconstrainedError"))msg="No camera was found on this device.";
+  else if(err&&err.name==="NotReadableError")msg="The camera is busy in another app right now — close it there and try again.";
+  scanFail(msg);
+ });
+}
+function startScanLoop(){
+ var video=document.getElementById("scan-video");
+ var canvas=document.getElementById("scan-canvas");
+ if("BarcodeDetector" in window){
+  try{scanDetector=new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf"]});}
+  catch(e){try{scanDetector=new BarcodeDetector();}catch(e2){scanDetector=null;}}
+ }
+ var tick=function(){
+  if(!scanActive)return;
+  if(video.readyState>=2&&video.videoWidth>0){
+   if(scanDetector){
+    scanDetector.detect(video).then(function(codes){
+     if(!scanActive)return;
+     for(var i=0;i<codes.length;i++){
+      var v=String((codes[i]&&codes[i].rawValue)||"").replace(/\D/g,"");
+      if(v.length>=8){scanAccept(v,true);return;}
+     }
+    }).catch(function(){});
+   } else {
+    var code=scanFrameForBarcode(video,canvas);
+    if(code)scanAccept(code,false);
+   }
+  }
+  if(scanActive)scanTimer=setTimeout(tick,scanDetector?180:140);
+ };
+ tick();
+}
+function scanAccept(code,confident){
+ if(!scanActive)return;
+ if(!confident){
+  scanHits[code]=(scanHits[code]||0)+1;
+  if(scanHits[code]<2){var s=document.getElementById("scan-status");if(s)s.innerHTML='<p class="muted small-txt" style="margin:0">Reading… hold it steady.</p>';return;}
+ }
+ scanActive=false;
+ if(navigator.vibrate){try{navigator.vibrate(60);}catch(e){}}
+ finishScanWithCode(code);
+}
+/* --- Built-in EAN/UPC fallback decoder (for browsers with no
+   BarcodeDetector, e.g. iPhone Safari). Works on grayscale scan lines
+   taken from the camera frame: binarize the row, walk its dark/light
+   runs, match each digit's 4-run pattern against the standard L/G/R
+   tables, then verify the check digit. --- */
+var EAN_L=["0001101","0011001","0010011","0111101","0100011","0110001","0101111","0111011","0110111","0001011"];
+var EAN_G=["0100111","0110011","0011011","0100001","0011101","0111001","0000101","0010001","0001001","0010111"];
+var EAN_R=["1110010","1100110","1101100","1000010","1011100","1001110","1010000","1000100","1001000","1110100"];
+var EAN_FIRST=["LLLLLL","LLGLGG","LLGGLG","LLGGGL","LGLLGG","LGGLLG","LGGGLL","LGLGLG","LGLGGL","LGGLGL"];
+function eanDigitMatch(runs,idx,startBit){
+ /* Best-match one digit: normalize its 4 run widths by their own total
+    (each digit is exactly 7 modules wide, so it self-calibrates even
+    when the barcode is nearer one side of the frame), then compare
+    against the pattern tables whose patterns start with startBit —
+    left digits start on a light run (L/G tables), right digits on a
+    dark run (R table) — and keep the closest fit. Returns
+    {d,parity:"L"|"G"|"R"} or null when nothing fits well. */
+ var w=[],sum=0,k;
+ for(k=0;k<4;k++){w.push(runs[idx+k]);sum+=runs[idx+k];}
+ if(!(sum>0))return null;
+ var dm=sum/7,nw=[w[0]/dm,w[1]/dm,w[2]/dm,w[3]/dm];
+ var tables=[["L",EAN_L],["G",EAN_G],["R",EAN_R]],best=null,bestErr=1e9;
+ for(var t=0;t<tables.length;t++){
+  var table=tables[t][1];
+  for(var d=0;d<10;d++){
+   var pat=table[d];
+   if(pat[0]!==startBit)continue;
+   var ideal=[],cnt=1;
+   for(var i=1;i<7;i++){if(pat[i]===pat[i-1])cnt++;else{ideal.push(cnt);cnt=1;}}
+   ideal.push(cnt);
+   if(ideal.length!==4)continue;
+   var err=0;for(k=0;k<4;k++){var diff=nw[k]-ideal[k];err+=diff*diff;}
+   if(err<bestErr){bestErr=err;best={d:d,parity:tables[t][0]};}
+  }
+ }
+ return (best&&bestErr<0.9)?best:null;
+}
+function eanGuardOk(runs,idx,count){
+ var sum=0,k;for(k=0;k<count;k++)sum+=runs[idx+k];
+ var m=sum/count;if(!(m>0))return false;
+ for(k=0;k<count;k++){var r=runs[idx+k]/m;if(r<0.45||r>2.1)return false;}
+ return true;
+}
+function eanParseAt(bits,start,total){
+ var leftCount=(total===95)?6:4,totalRuns=(total===95)?59:43;
+ var runs=[],i=start,cur=1;
+ while(i<bits.length&&runs.length<totalRuns){
+  var j=i;while(j<bits.length&&bits[j]===cur)j++;
+  runs.push(j-i);i=j;cur=1-cur;
+ }
+ if(runs.length<totalRuns)return null;
+ if(!eanGuardOk(runs,0,3))return null;
+ var parity="",leftDigits=[],idx=3,k,m;
+ for(k=0;k<leftCount;k++){
+  m=eanDigitMatch(runs,idx,"0");idx+=4;
+  if(!m||m.parity==="R")return null;
+  leftDigits.push(m.d);parity+=m.parity;
+ }
+ if(!eanGuardOk(runs,idx,5))return null;
+ idx+=5;
+ var rightDigits=[];
+ for(k=0;k<leftCount;k++){
+  m=eanDigitMatch(runs,idx,"1");idx+=4;
+  if(!m||m.parity!=="R")return null;
+  rightDigits.push(m.d);
+ }
+ if(!eanGuardOk(runs,idx,3))return null;
+ var first=0;
+ if(total===95){first=EAN_FIRST.indexOf(parity);if(first<0)return null;}
+ var digits=(total===95?[first].concat(leftDigits):leftDigits).concat(rightDigits);
+ var sumAll=0;
+ if(total===95){for(k=0;k<12;k++)sumAll+=digits[k]*((k%2===0)?1:3);if((10-(sumAll%10))%10!==digits[12])return null;}
+ else{for(k=0;k<7;k++)sumAll+=digits[k]*((k%2===0)?3:1);if((10-(sumAll%10))%10!==digits[7])return null;}
+ return digits.join("");
+}
+function eanParseRow(bits,total){
+ var n=bits.length,zeroRun=0;
+ for(var i=0;i<n;i++){
+  if(bits[i]===0){zeroRun++;continue;}
+  if(i>0&&bits[i-1]===0&&zeroRun>=8){
+   var c=eanParseAt(bits,i,total);if(c)return c;
+  }
+  zeroRun=0;
+ }
+ return null;
+}
+function eanDecodeRow(bits){
+ var code=eanParseRow(bits,95)||eanParseRow(bits,67);
+ if(code)return code;
+ var rev=bits.slice().reverse();
+ return eanParseRow(rev,95)||eanParseRow(rev,67);
+}
+function scanFrameForBarcode(video,canvas){
+ var w=video.videoWidth,h=video.videoHeight;
+ if(!w||!h)return null;
+ var scale=Math.min(1,720/w);
+ var cw=Math.max(2,Math.round(w*scale)),ch=Math.max(2,Math.round(h*scale));
+ canvas.width=cw;canvas.height=ch;
+ var ctx=canvas.getContext("2d",{willReadFrequently:true});
+ if(!ctx)return null;
+ ctx.drawImage(video,0,0,cw,ch);
+ var img;
+ try{img=ctx.getImageData(0,0,cw,ch);}catch(e){return null;}
+ var d=img.data,gray=new Uint8Array(cw*ch),i,p;
+ for(i=0,p=0;i<d.length;i+=4,p++)gray[p]=(d[i]*299+d[i+1]*587+d[i+2]*114)/1000;
+ var rows=[0.5,0.38,0.62,0.28,0.72,0.2,0.8,0.12,0.88];
+ for(var r=0;r<rows.length;r++){
+  var y=Math.min(ch-1,Math.max(0,Math.round(ch*rows[r]))),off=y*cw;
+  var mn=255,mx=0;
+  for(i=0;i<cw;i++){var v=gray[off+i];if(v<mn)mn=v;if(v>mx)mx=v;}
+  if(mx-mn<40)continue;
+  var th=(mn+mx)/2,bits=new Array(cw);
+  for(i=0;i<cw;i++)bits[i]=gray[off+i]<th?1:0;
+  var code=eanDecodeRow(bits);
+  if(code)return code;
+ }
+ return null;
+}
+var _scanBtn1=document.getElementById("go-scan");if(_scanBtn1)_scanBtn1.addEventListener("click",openBarcodeScanner);
+var _scanBtn2=document.getElementById("scan-barcode-btn");if(_scanBtn2)_scanBtn2.addEventListener("click",openBarcodeScanner);
+document.getElementById("scan-close").addEventListener("click",closeBarcodeScanner);
+document.getElementById("scan-cancel").addEventListener("click",closeBarcodeScanner);
+function scanManualSubmit(){
+ var code=document.getElementById("scan-manual").value.replace(/\D/g,"");
+ var status=document.getElementById("scan-status");
+ if(code.length<8){if(status)status.innerHTML='<p class="err" style="margin:0">Type at least 8 digits from the barcode.</p>';return;}
+ finishScanWithCode(code);
+}
+document.getElementById("scan-manual-btn").addEventListener("click",scanManualSubmit);
+document.getElementById("scan-manual").addEventListener("keydown",function(ev){if(ev.key==="Enter"){ev.preventDefault();scanManualSubmit();}});
 
 /* ================= Gemini (AI fill-in + label scan) ================= */
 function noKeyHtml(){return '<div class="nokey"><strong>No API key saved yet</strong><p class="small-txt" style="margin:6px 0">AI features need your free Google AI Studio key. No key? You can always type the label values in yourself — search, Open Food Facts and manual logging work with no key at all.</p><button class="primary" data-go="settings">Go to Settings — add API key</button> <button type="button" data-custom-open="">✎ Enter the food manually</button></div>';}
@@ -3222,7 +3507,11 @@ function renderScanPreview(d){
    f:r1(parseFloat(document.getElementById("sp-f").value)||0),fiber:r1(parseFloat(document.getElementById("sp-fiber").value)||0),fromLabelScan:true,src:"custom"};
   /* Unified flow: close this modal and open the adjuster sheet — its one
      confirm saves the scanned food to the index AND logs it to the chosen
-     meal with the chosen grams. Meal defaults to the “Log to meal” choice. */
+     meal with the chosen grams. Meal defaults to the “Log to meal” choice.
+     The custom-form draft for this same item is handed off to the
+     adjuster now, so clear it here — otherwise it survives the save and
+     the banner offers this already-added food again afterwards. */
+  saveDraft("custom",null);
   document.getElementById("custom-modal").classList.remove("open");
   openAdjust(f,(document.getElementById("log-meal")||{}).value||currentMeal(),true);
  });
@@ -3359,6 +3648,7 @@ function renderReviewInto(prefix,items,note){
    var meal=mealSel?mealSel.value:currentMeal();
    var n=logReviewItems(items,meal);
    if(!n){toast("Nothing to log — check the foods first.");return;}
+   if(prefix==="dm")saveDraft("describe",null);
    out.innerHTML='<p class="ok-msg" style="margin:0">✓ Logged '+n+" food"+(n===1?"":"s")+" to "+mealNames[meal]+" for the day you're viewing.</p>";
    toast("Logged "+n+" food"+(n===1?"":"s")+" to "+mealNames[meal]+".");
  });
@@ -3556,6 +3846,11 @@ document.getElementById("cf-save").addEventListener("click",function(){
  if(labelScanPending)f.fromLabelScan=true;
  labelScanPending=false;
  state.customFoods.push(f);save();
+ /* The food is saved — clear its draft synchronously, inside this same
+    handler, so the Resume-draft banner can never come back for an item
+    that is already in the index (a delayed clear could be lost to a
+    reload or the capture tick below). */
+ saveDraft("custom",null);
  document.getElementById("custom-modal").classList.remove("open");toast("Saved “"+name+"” to your Foods index.");filterFoods();
 });
 
@@ -5128,6 +5423,10 @@ function saveDraft(kind,obj){
  try{var d=loadDrafts();
   if(obj)d[kind]=obj;else delete d[kind];
   if(Object.keys(d).length)localStorage.setItem(DRAFT_KEY,JSON.stringify(d));else localStorage.removeItem(DRAFT_KEY);
+  /* Keep the capture cache in step with storage. Without this, the cache
+     still held a cleared draft's JSON, and the capture tick's
+     change-check could no longer be trusted around a clear. */
+  _draftCache=Object.keys(d).length?JSON.stringify(d):"";
  }catch(e){}
  renderDraftBanner();
 }
@@ -5206,13 +5505,19 @@ function resumeDraft(kind){
  renderDraftBanner();
 }
 /* Completing or cancelling a flow clears its draft. These are extra
-   listeners alongside the existing handlers — nothing existing changes. */
+   listeners alongside the existing handlers — nothing existing changes.
+   They clear IMMEDIATELY, in the same click as the save itself (the
+   primary save handlers now clear synchronously too). The old version
+   waited 80 ms on a timer first: a reload, a Refresh-app tap, iOS
+   backgrounding the page, or the 1.5 s capture tick landing in that
+   window could all leave the stale draft in storage, so the banner
+   came back offering an item that was already saved. */
 (function wireDraftClearing(){
- var add=document.getElementById("adj-add");if(add)add.addEventListener("click",function(){setTimeout(function(){saveDraft("adjust",null);},80);});
+ var add=document.getElementById("adj-add");if(add)add.addEventListener("click",function(){saveDraft("adjust",null);saveDraft("custom",null);});
  var cancel=document.getElementById("adj-cancel");if(cancel)cancel.addEventListener("click",function(){saveDraft("adjust",null);});
- var cfSave=document.getElementById("cf-save");if(cfSave)cfSave.addEventListener("click",function(){setTimeout(function(){var m=document.getElementById("custom-modal");if(m&&!m.classList.contains("open"))saveDraft("custom",null);},80);});
+ var cfSave=document.getElementById("cf-save");if(cfSave)cfSave.addEventListener("click",function(){var m=document.getElementById("custom-modal");if(m&&!m.classList.contains("open"))saveDraft("custom",null);});
  var cfCancel=document.getElementById("cf-cancel");if(cfCancel)cfCancel.addEventListener("click",function(){saveDraft("custom",null);});
- document.addEventListener("click",function(ev){if(ev.target&&ev.target.id==="dm-rlog"){setTimeout(function(){saveDraft("describe",null);},80);}});
+ document.addEventListener("click",function(ev){if(ev.target&&ev.target.id==="dm-rlog"){saveDraft("describe",null);}});
 })();
 
 /* ================= Final batch: daily notes, share, glance, health import, menu scan =================
@@ -5951,6 +6256,43 @@ updateSavedIndicators();
 wireRecipeImport();
 renderDraftBanner();
 renderToday();
+
+/* ================= Bottom nav: keep it pinned on iOS =================
+   The bar is position:fixed (bottom:0) and no ancestor carries a
+   transform/filter/perspective (checked in the stylesheet and guarded
+   there), but iOS Safari — above all in home-screen standalone mode —
+   can still let the layout viewport and the visual viewport disagree
+   while scrolling, which leaves a fixed bar floating mid-screen with
+   page content above and below it. This re-pins the bar to the VISUAL
+   viewport: on every visual-viewport scroll/resize (and window
+   scroll/resize/orientation change, rAF-throttled) it translates the
+   bar by exactly the gap between the two viewports' bottom edges.
+   When they agree — desktop, Android, and iOS at rest — the gap is 0
+   and the bar sits at bottom:0 exactly as the CSS puts it. It also
+   keeps the bar at the visible bottom when the keyboard opens, which
+   is where a fixed bar belongs. Runs last; touches only the nav. */
+(function pinBottomNav(){
+ var nav=document.querySelector("nav.bottom");if(!nav)return;
+ var ticking=false;
+ function update(){
+  ticking=false;
+  var vv=window.visualViewport;
+  if(!vv)return;
+  var gap=Math.round((vv.offsetTop+vv.height)-window.innerHeight);
+  var t="translate3d(0,"+gap+"px,0)";
+  nav.style.transform=t;nav.style.webkitTransform=t;
+ }
+ function request(){if(!ticking){ticking=true;requestAnimationFrame(update);}}
+ if(window.visualViewport){
+  window.visualViewport.addEventListener("resize",request);
+  window.visualViewport.addEventListener("scroll",request);
+ }
+ window.addEventListener("resize",request,{passive:true});
+ window.addEventListener("scroll",request,{passive:true});
+ window.addEventListener("orientationchange",request);
+ window.addEventListener("pageshow",request);
+ update();
+})();
 </script>
 </body>
 </html>
